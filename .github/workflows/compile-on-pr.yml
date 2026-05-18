@@ -51,12 +51,18 @@ jobs:
         id: affected
         run: |
           base="${{ github.event.pull_request.base.sha }}"
-          changed=$(git diff --name-only "$base"...HEAD | grep -E '^(evals/datasets/|src/putsch_compile/signatures/)' || true)
-          echo "files<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$changed" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-          # extract bare signature names
-          names=$(echo "$changed" | sed -E 's@.*/([a-z_]+)\.(jsonl|py)@\1@' | sort -u | grep -v '^_base$' | grep -v '^__init__$' || true)
+          changed=$(git diff --name-only "$base"...HEAD \
+            | grep -E '^(evals/datasets/|src/putsch_compile/signatures/)' \
+            || true)
+          # Extract bare signature names. The variable is space-separated (never newline-separated)
+          # so it fits the single-line "key=value" format required by $GITHUB_OUTPUT.
+          names=$(printf '%s\n' "$changed" \
+            | sed -E 's@.*/([a-z_]+)\.(jsonl|py)$@\1@' \
+            | grep -v '^_base$' \
+            | grep -v '^__init__$' \
+            | sort -u \
+            | tr '\n' ' ' \
+            | sed 's/[[:space:]]*$//')
           echo "names=$names" >> "$GITHUB_OUTPUT"
 
       - name: Run regression eval on affected signatures
