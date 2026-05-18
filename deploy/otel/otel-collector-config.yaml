@@ -1,0 +1,156 @@
+# OTel Collector — Putsch Frankfurt ingest pipeline.
+#
+# The order of processors is load-bearing. Read top-to-bottom:
+#
+#   1. receivers/otlp           accept OTLP/gRPC and OTLP/HTTP
+#   2. processors/memory_limiter      apply backpressure before doing work
+#   3. processors/transform           normalize attribute names from various
+#                                     SDK conventions to the Putsch schema
+#   4. processors/redaction (regex)   final-defence redaction at the wire.
+#                                     The SDK redacts first; this is the
+#                                     backstop for traces from services
+#                                     that bypass the SDK (legacy services,
+#                                     third-party libs).
+#   5. processors/attributes          drop allowlist-violating attributes
+#   6. processors/batch               batch for export efficiency
+#   7. exporters/otlphttp/langfuse    push to Langfuse
+#
+# Steps 2 → 6 are *additive* with the SDK's in-process redaction. Both
+# stages must pass before anything is stored. Belt and braces.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 25
+
+  # Make sure every span carries the Putsch retention class and a region
+  # tag. Sources that forget will be tagged with safe defaults.
+  resource:
+    attributes:
+      - key: putsch.region
+        value: eu-central-fra
+        action: upsert
+      - key: putsch.retention_class
+        value: limited_risk
+        action: insert
+      - key: telemetry.sdk.routed_through
+        value: putsch-otel-collector
+        action: upsert
+
+  # Backstop deterministic redaction. Order matches the in-process redactor
+  # so the wire format is identical. Patterns are POSIX-ERE, not Python.
+  transform/redact:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          # IBAN
+          - replace_pattern(attributes["input.value"],
+              "DE\\d{2}(\\s?\\d{4}){4}\\s?\\d{2}",
+              "<<PII:iban:WIRE>>")
+          - replace_pattern(attributes["output.value"],
+              "DE\\d{2}(\\s?\\d{4}){4}\\s?\\d{2}",
+              "<<PII:iban:WIRE>>")
+          # USt-IdNr
+          - replace_pattern(attributes["input.value"],
+              "DE\\s?\\d{9}",
+              "<<PII:ust_id:WIRE>>")
+          - replace_pattern(attributes["output.value"],
+              "DE\\s?\\d{9}",
+              "<<PII:ust_id:WIRE>>")
+          # Steuernummer (regional)
+          - replace_pattern(attributes["input.value"],
+              "\\d{2,3}/\\d{3,4}/\\d{4,5}",
+              "<<PII:steuer_nr:WIRE>>")
+          - replace_pattern(attributes["output.value"],
+              "\\d{2,3}/\\d{3,4}/\\d{4,5}",
+              "<<PII:steuer_nr:WIRE>>")
+          # Email
+          - replace_pattern(attributes["input.value"],
+              "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+              "<<PII:email:WIRE>>")
+          - replace_pattern(attributes["output.value"],
+              "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+              "<<PII:email:WIRE>>")
+          # German phone
+          - replace_pattern(attributes["input.value"],
+              "(\\+49|0049|0)[\\s\\-/]?(\\d[\\s\\-/]?){8,14}\\d",
+              "<<PII:phone_de:WIRE>>")
+          - replace_pattern(attributes["output.value"],
+              "(\\+49|0049|0)[\\s\\-/]?(\\d[\\s\\-/]?){8,14}\\d",
+              "<<PII:phone_de:WIRE>>")
+
+  # Allowlist of attributes that are KEPT verbatim. Anything else with a
+  # string value is hashed to its sha256 prefix, so a leak of a stray
+  # attribute is still a hash, not the raw value. Belt-and-braces.
+  attributes/allowlist:
+    actions:
+      - action: hash
+        pattern: ^(?!gen_ai\.|http\.|putsch\.|service\.|deployment\.|process\.|telemetry\.|otel\.|exception\.|enduser\.role|net\.|db\.system).+
+      # Always drop free-form user data fields that shouldn't reach here.
+      - action: delete
+        key: enduser.id
+
+  batch:
+    timeout: 500ms
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+exporters:
+  otlphttp/langfuse:
+    endpoint: "http://langfuse-web:3000/api/public/otel"
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_PUBLIC_KEY}:${env:LANGFUSE_SECRET_KEY}"
+    tls:
+      insecure: true   # internal docker network only; TLS terminates at the LB
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 60s
+      max_elapsed_time: 5m
+
+  # Optional: a parallel debug exporter to stdout for dev environments.
+  # Disable by removing from the pipelines.exporters list.
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, zpages]
+  telemetry:
+    logs:
+      level: info
+      encoding: json
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - resource
+        - transform/redact
+        - attributes/allowlist
+        - batch
+      exporters: [otlphttp/langfuse]

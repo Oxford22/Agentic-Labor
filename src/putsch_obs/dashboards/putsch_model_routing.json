@@ -1,0 +1,98 @@
+{
+  "slug": "putsch_model_routing",
+  "name": "Model routing — usage, cost, accuracy",
+  "description": "Per-task model usage, EUR cost, accuracy by model. Drives the routing config in models.py.",
+  "tags": ["putsch", "models", "routing", "cost"],
+  "owner_team": "ml-platform",
+  "refresh_interval_seconds": 120,
+  "time_range": "last_7d",
+  "filters_default": [
+    {"field": "putsch.kind", "op": "eq", "value": "generation"}
+  ],
+  "widgets": [
+    {
+      "id": "usage_by_model",
+      "title": "Generations by model",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "gen_ai.request.model"
+      }
+    },
+    {
+      "id": "cost_by_model",
+      "title": "EUR cost by model (7d)",
+      "type": "bar_chart",
+      "query": {
+        "metric": "sum",
+        "field": "gen_ai.usage.cost_eur",
+        "group_by": "gen_ai.request.model"
+      },
+      "format": "currency_eur"
+    },
+    {
+      "id": "accuracy_by_model",
+      "title": "Mean quality score by model",
+      "type": "bar_chart",
+      "query": {
+        "metric": "mean",
+        "field": "putsch.quality_score",
+        "group_by": "gen_ai.request.model",
+        "where": [{"field": "putsch.quality_score", "op": "exists", "value": true}]
+      },
+      "format": "score_unit"
+    },
+    {
+      "id": "p95_latency_by_model",
+      "title": "p95 latency by model (ms)",
+      "type": "bar_chart",
+      "query": {
+        "metric": "p95",
+        "field": "putsch.latency_ms",
+        "group_by": "gen_ai.request.model"
+      }
+    },
+    {
+      "id": "cache_hit_rate",
+      "title": "LiteLLM cache hit %",
+      "type": "single_value",
+      "query": {
+        "metric": "ratio",
+        "numerator": {
+          "field": "span_id",
+          "where": [{"field": "putsch.cache_hit", "op": "eq", "value": true}]
+        },
+        "denominator": {"field": "span_id"}
+      },
+      "format": "percent"
+    },
+    {
+      "id": "cost_unknown_alert",
+      "title": "Spans with unknown cost",
+      "type": "single_value",
+      "query": {
+        "metric": "count",
+        "where": [{"field": "putsch.cost_unknown", "op": "eq", "value": true}]
+      },
+      "thresholds": [
+        {"label": "warn", "value": 1, "color": "amber", "comparator": "gte"},
+        {
+          "label": "alert",
+          "value": 100,
+          "color": "red",
+          "comparator": "gte",
+          "notify_webhook": "pricing-needs-updating"
+        }
+      ]
+    },
+    {
+      "id": "routing_decisions",
+      "title": "Routing decisions taken",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "putsch.routing.decision"
+      }
+    }
+  ]
+}
