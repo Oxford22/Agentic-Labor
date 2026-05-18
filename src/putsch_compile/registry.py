@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Final
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import (
     DateTime,
     Float,
@@ -397,8 +397,14 @@ class Registry:
     async def init_schema(self) -> None:
         """Create tables. Production runs alembic; tests call this directly."""
 
+        from sqlalchemy.ext.asyncio import AsyncEngine
+
         async with self._sessionmaker() as sess:
-            engine = sess.bind
-            assert engine is not None
-            async with engine.begin() as conn:  # type: ignore[union-attr]
+            bind = sess.bind
+            if not isinstance(bind, AsyncEngine):
+                raise RegistryError(
+                    "session has no async engine bound",
+                    context={"bind_type": type(bind).__name__},
+                )
+            async with bind.begin() as conn:
                 await conn.run_sync(_Base.metadata.create_all)

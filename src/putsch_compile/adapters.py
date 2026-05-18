@@ -32,17 +32,18 @@ def _baml_adapter() -> type[dspy.Adapter]:
     if _baml_adapter_cls is not None:
         return _baml_adapter_cls
     try:
-        from dspy.adapters.baml_adapter import BAMLAdapter  # type: ignore[import-not-found]
+        from dspy.adapters.baml_adapter import BAMLAdapter
     except ImportError:
         try:
-            from dspy.adapters import BAMLAdapter  # type: ignore[import-not-found,no-redef]
+            from dspy.adapters import BAMLAdapter
         except ImportError as exc:  # pragma: no cover - env mismatch
             raise AdapterError(
                 "BAMLAdapter not available — check dspy-ai >= 2.5.20 in pyproject.toml",
                 context={"error": str(exc)},
             ) from exc
-    _baml_adapter_cls = BAMLAdapter
-    return BAMLAdapter
+    cls: type[dspy.Adapter] = BAMLAdapter
+    _baml_adapter_cls = cls
+    return cls
 
 
 def configure_dspy(*, model: str, api_base: str | None = None, **kwargs: Any) -> None:

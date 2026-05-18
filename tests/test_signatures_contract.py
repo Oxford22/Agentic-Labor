@@ -95,7 +95,7 @@ def test_changing_an_instruction_changes_version_hash() -> None:
         version="1.0.0",
         accuracy_threshold=0.9,
         cost_ceiling_eur_per_1k_calls=0.5,
-        instruction="alpha",
+        instruction="alpha — long-enough instruction string",
     )
-    b = a.model_copy(update={"instruction": "beta"})
+    b = a.model_copy(update={"instruction": "beta — long-enough instruction string"})
     assert a.model_dump_json() != b.model_dump_json()

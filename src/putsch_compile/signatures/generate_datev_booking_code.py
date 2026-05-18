@@ -119,7 +119,10 @@ class GenerateDatevBookingCode(PutschSignature):
                     "kostentraeger": None,
                     "ust_schluessel": "9",
                     "confidence": 0.95,
-                    "rationale": "Produktionsmaterial Inland 19 % → Wareneingang (SKR04 5400), Werk Hagen Produktion KSt 1030.",
+                    "rationale": (
+                        "Produktionsmaterial Inland 19 % → Wareneingang (SKR04 5400), "
+                        "Werk Hagen Produktion KSt 1030."
+                    ),
                 },
                 labeled_by="b.koenig@putsch.example",
                 rationale="Eindeutiger Wareneingang Inland.",

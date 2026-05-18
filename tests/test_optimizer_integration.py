@@ -119,8 +119,9 @@ async def test_regression_gate_halts_when_holdout_drops(
 ) -> None:
     """If a previously-active artifact has higher holdout accuracy, a regression aborts the run."""
 
-    from putsch_compile.artifacts import CompiledArtifact
     from datetime import UTC, datetime
+
+    from putsch_compile.artifacts import CompiledArtifact
 
     sig = SIGNATURE_REGISTRY["classify_hs_code"]
     high = CompiledArtifact(

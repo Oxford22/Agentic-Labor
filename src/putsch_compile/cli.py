@@ -15,7 +15,6 @@ regression halted the pipeline, 3 = unknown signature / dataset, 4 = registry er
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 from typing import Any

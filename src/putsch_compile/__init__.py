@@ -21,6 +21,7 @@ from putsch_compile.routing import ModelTier, Router
 from putsch_compile.signatures import SIGNATURE_REGISTRY, PutschSignature, SignatureMeta
 
 __all__ = [
+    "SIGNATURE_REGISTRY",
     "AdapterError",
     "CompilationError",
     "CompiledArtifactRecord",
@@ -32,7 +33,6 @@ __all__ = [
     "RegistryError",
     "Router",
     "RoutingError",
-    "SIGNATURE_REGISTRY",
     "Settings",
     "SignatureMeta",
     "get_settings",

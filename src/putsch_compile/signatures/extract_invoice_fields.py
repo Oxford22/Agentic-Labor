@@ -68,7 +68,9 @@ class ExtractInvoiceFields(PutschSignature):
     lieferant_ustid: str | None = dspy.OutputField(
         desc="USt-IdNr (z. B. DE123456789). null falls nicht ausgewiesen."
     )
-    lieferant_steuernummer: str | None = dspy.OutputField(desc="Inländische Steuernummer (z. B. 121/567/89012). null falls nicht ausgewiesen.")
+    lieferant_steuernummer: str | None = dspy.OutputField(
+        desc="Inländische Steuernummer (z. B. 121/567/89012). null falls nicht ausgewiesen."
+    )
     rechnungsdatum: date = dspy.OutputField(desc="ISO-8601, YYYY-MM-DD.")
     leistungsdatum: date = dspy.OutputField(
         desc="Leistungs- oder Lieferdatum. Falls nicht separat ausgewiesen → Rechnungsdatum übernehmen."

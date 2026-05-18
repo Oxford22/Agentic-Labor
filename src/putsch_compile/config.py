@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EnvName = Literal["dev", "staging", "prod"]
@@ -161,11 +161,6 @@ class Settings(BaseSettings):
     registry_db: RegistryDBSettings = Field(default_factory=RegistryDBSettings)
     compilation: CompilationSettings = Field(default_factory=CompilationSettings)
     git_feedback: GitFeedbackSettings = Field(default_factory=GitFeedbackSettings)
-
-    @field_validator("dataset_dir")
-    @classmethod
-    def _normalize_dataset_dir(cls, value: Path) -> Path:
-        return value if value.is_absolute() else value
 
     @property
     def absolute_dataset_dir(self) -> Path:

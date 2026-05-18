@@ -35,7 +35,7 @@ def get_langfuse() -> Any:
     if not settings.enabled:
         return None
     try:
-        from langfuse import Langfuse  # type: ignore[import-not-found]
+        from langfuse import Langfuse
 
         return Langfuse(
             host=settings.host,

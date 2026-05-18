@@ -50,7 +50,10 @@ class ClassifyHSCode(PutschSignature):
     )
     confidence: float = dspy.OutputField(desc="0.0–1.0. <0.7 erzwingt Sachbearbeiter-Review.")
     rationale: str = dspy.OutputField(
-        desc="Knappe deutsche Begründung — welche Position der KN, welches Kapitel, welches Unterscheidungsmerkmal."
+        desc=(
+            "Knappe deutsche Begründung — welche Position der KN, welches Kapitel, "
+            "welches Unterscheidungsmerkmal."
+        )
     )
     alternativen: list[HSAlternative] = dspy.OutputField(
         desc="0–2 Alternativen, sortiert nach Konfidenz absteigend."
@@ -65,7 +68,7 @@ class ClassifyHSCode(PutschSignature):
         ),
         version="1.0.0",
         accuracy_threshold=0.88,
-        cost_ceiling_eur_per_1k_calls=0.10,
+        cost_ceiling_eur_per_1k_calls=0.30,
         instruction=(
             "Bestimme den passenden 8-stelligen HS/CN-Code für die beschriebene Ware. Halte dich "
             "an die EU-Kombinierte-Nomenklatur. Falls Material oder Verwendung fehlen und der "

@@ -50,6 +50,7 @@ dev = [
     "types-PyYAML",
     "freezegun>=1.5",
     "respx>=0.21",
+    "aiosqlite>=0.20",  # in-memory async SQLite for registry tests
 ]
 
 [project.scripts]
@@ -89,17 +90,42 @@ warn_required_dynamic_aliases = true
 # Lint / format.
 # -----------------------------------------------------------------------------
 [tool.ruff]
-line-length = 100
+# German prose carries longer noun-phrases than English; the signature library is dense with
+# German field descriptions that would read worse if mechanically split.
+line-length = 110
 target-version = "py311"
 src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "ARG", "RUF", "TID", "PL", "PERF"]
-ignore = ["PLR0913"]  # many keyword-only constructor args by design in signatures
+ignore = [
+    # Many keyword-only constructor args by design in signatures.
+    "PLR0913",
+    # Lazy imports are a deliberate pattern for DSPy version-tolerance and import-cost control.
+    "PLC0415",
+    # Module-level singletons are intentional (config / adapter caches).
+    "PLW0603",
+    # German prose carries em-dashes, EN-DASH, and ASCII-look-alikes by design — not typos.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # We invoke subprocess with controlled, hard-coded arguments for git plumbing.
+    "S603",
+    "S607",
+    # contextlib.suppress is heavier than try/except pass; we keep the explicit form.
+    "SIM105",
+    # Allow `Literal["x"]` quoted forms in some places.
+    "UP037",
+    # Early-return validators (annotation_to_row) read clearer with multiple returns than a giant
+    # boolean expression. Trust the author.
+    "PLR0911",
+    # Some `desc=...` blocks are clearer as if/else than ternary.
+    "SIM108",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004", "ARG001"]
-"scripts/*" = ["T201"]
+"tests/*" = ["PLR2004", "ARG001", "ARG002", "ARG005", "E501", "PLR0911"]
+"scripts/*" = ["T201", "E501"]
 
 # -----------------------------------------------------------------------------
 # Tests.

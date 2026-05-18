@@ -109,7 +109,7 @@ def register(cls: type["PutschSignature"]) -> type["PutschSignature"]:
     return cls
 
 
-class PutschSignature(dspy.Signature):
+class PutschSignature(dspy.Signature):  # type: ignore[misc]  # dspy.Signature is Any per stubs
     """Base for every signature in the platform.
 
     Subclasses *must* override ``meta()``. The metadata is class-level (a ``ClassVar``) and the

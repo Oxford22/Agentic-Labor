@@ -18,9 +18,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Any, AsyncIterator, Final
+from typing import Any, Final
 
 import orjson
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -97,7 +98,7 @@ class ArtifactStore:
     @asynccontextmanager
     async def _session(self) -> AsyncIterator[Any]:
         # Imported lazily so tests that do not exercise S3 don't pay the import cost.
-        import aioboto3  # type: ignore[import-untyped]
+        import aioboto3
 
         session = aioboto3.Session()
         async with session.client(

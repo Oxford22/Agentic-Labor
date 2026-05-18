@@ -32,6 +32,19 @@ def _add_correlation_id(_logger: Any, _method: str, event_dict: EventDict) -> Ev
     return event_dict
 
 
+def _add_logger_name(logger: Any, _method: str, event_dict: EventDict) -> EventDict:
+    """Like ``structlog.stdlib.add_logger_name`` but tolerant of structlog's PrintLogger.
+
+    The stdlib version assumes a ``.name`` attribute that PrintLogger doesn't expose. Falling back
+    silently keeps logging from blowing up in unit tests that don't configure stdlib.
+    """
+
+    name = getattr(logger, "name", None)
+    if name:
+        event_dict.setdefault("logger", name)
+    return event_dict
+
+
 def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
     """Idempotent. Safe to call from CLI entrypoints, tests, or nothing at all."""
 
@@ -44,7 +57,7 @@ def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
     shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
+        _add_logger_name,
         _add_correlation_id,
         timestamper,
         structlog.processors.StackInfoRenderer(),
@@ -115,4 +128,7 @@ def get_correlation_id() -> str | None:
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     if not _configured:
         configure_logging()
-    return structlog.get_logger(name) if name else structlog.get_logger()
+    logger: structlog.stdlib.BoundLogger = (
+        structlog.get_logger(name) if name else structlog.get_logger()
+    )
+    return logger

@@ -152,7 +152,7 @@ def _split_dataset(
     indices = list(range(len(rows)))
     rng = random.Random(seed)
     rng.shuffle(indices)
-    n_hold = max(1, int(round(len(rows) * holdout_fraction)))
+    n_hold = max(1, round(len(rows) * holdout_fraction))
     hold_idx = set(indices[:n_hold])
     train = [rows[i] for i in range(len(rows)) if i not in hold_idx]
     holdout = [rows[i] for i in range(len(rows)) if i in hold_idx]
@@ -201,13 +201,13 @@ def _gepa_cls() -> Any:
     """Import-tolerant GEPA accessor."""
 
     try:
-        from dspy.teleprompt import GEPA  # type: ignore[import-not-found]
+        from dspy.teleprompt import GEPA
 
         return GEPA
     except ImportError:
         pass
     try:
-        from dspy import GEPA  # type: ignore[import-not-found,no-redef]
+        from dspy import GEPA
 
         return GEPA
     except ImportError as exc:  # pragma: no cover - env mismatch
@@ -303,7 +303,7 @@ class OptimizerHarness:
                             "signature": signature_name,
                             "threshold": meta.accuracy_threshold,
                             "ceiling_eur_per_1k": meta.cost_ceiling_eur_per_1k_calls,
-                            "ladder": [c.model for c in candidates],
+                            "ladder": [c.id for c in candidates],
                         },
                     )
 
@@ -386,7 +386,7 @@ class OptimizerHarness:
         configure_dspy(model=model_card.id)
         student = dspy.ChainOfThought(signature)
         gepa = _gepa_cls()(
-            metric=lambda ex, pr, trace=None: get_metric(meta.name)(ex, pr).score,
+            metric=lambda ex, pr, _trace=None: get_metric(meta.name)(ex, pr).score,
             num_threads=self._settings.compilation.num_threads,
             seed=self._settings.compilation.seed,
         )
@@ -472,7 +472,7 @@ class OptimizerHarness:
         card: ModelCard,
         *,
         signature: type[PutschSignature],
-        n_holdout: int,
+        n_holdout: int,  # noqa: ARG002 — kept for symmetry with the future real-cost path
     ) -> float:
         """Order-of-magnitude cost-per-call estimate, used as the second optimisation criterion.
 

@@ -31,6 +31,7 @@ from putsch_compile.signatures.reconcile_master_data import ReconcileMasterData
 from putsch_compile.signatures.summarize_audit_trail import SummarizeAuditTrail
 
 __all__ = [
+    "SIGNATURE_REGISTRY",
     "ClassifyHSCode",
     "ClassifyInvoiceException",
     "Demo",
@@ -41,7 +42,6 @@ __all__ = [
     "OwnerTeam",
     "PutschSignature",
     "ReconcileMasterData",
-    "SIGNATURE_REGISTRY",
     "SignatureMeta",
     "SummarizeAuditTrail",
     "register",

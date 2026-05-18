@@ -220,7 +220,7 @@ class FeedbackSync:
             ],
         ]
         for cmd in cmds:
-            result = subprocess.run(  # noqa: S603 - controlled args
+            result = subprocess.run(
                 cmd,
                 cwd=repo_root,
                 env={**env, "PATH": "/usr/bin:/bin:/usr/local/bin"},
@@ -237,7 +237,7 @@ class FeedbackSync:
                 )
                 return branch, ""
 
-        sha = subprocess.run(  # noqa: S603
+        sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo_root,
             check=False,

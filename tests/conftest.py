@@ -79,10 +79,14 @@ def router() -> Router:
 
 @pytest.fixture
 def patched_dspy(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-    """Replace ``configure_dspy``, ``dspy.ChainOfThought``, and ``GEPA`` with deterministic stubs.
+    """Replace ``configure_dspy``, ``dspy.ChainOfThought``, ``GEPA``, and ``get_metric`` with
+    deterministic stubs.
 
-    Returns a dict with hooks the test can use to assert behavior.
+    The replacement metric scores 1.0 unconditionally so the harness's accept-the-cheapest-tier
+    behaviour is what we exercise — not the metric. Metric correctness is tested separately.
     """
+
+    from putsch_compile.metrics import MetricResult
 
     calls: dict[str, Any] = {"configure": [], "compiled_modules": []}
 
@@ -96,10 +100,8 @@ def patched_dspy(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             self.predict.signature = MagicMock(instructions="STUB-INSTRUCTION-v1")
             self.predict.demos = []
 
-        def __call__(self, **inputs: Any) -> Any:
-            # Echo the example's outputs back if pytest set ``self._gold`` on us; otherwise return
-            # zero-ish defaults. The optimizer's metric handles missing fields by returning 0.
-            return MagicMock(**(getattr(self, "_gold", {})))
+        def __call__(self, **_inputs: Any) -> Any:
+            return MagicMock()
 
     def fake_chain_of_thought(signature: Any) -> _FakeCompiled:
         return _FakeCompiled(signature)
@@ -110,24 +112,14 @@ def patched_dspy(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
         def compile(self, student: _FakeCompiled, *, trainset: list[Any]) -> _FakeCompiled:
             calls["compiled_modules"].append(student)
-            # The "compiled" module mimics a 1.0 metric prediction by echoing the first example.
-            if trainset:
-                gold = {
-                    k: v
-                    for k, v in trainset[0].__dict__.items()
-                    if not k.startswith("_") and k != "input_keys"
-                }
-                student._gold = gold
             return student
+
+    def fake_get_metric(_name: str) -> Any:
+        return lambda _ex, _pr: MetricResult(score=1.0, breakdown={"stub": 1.0})
 
     monkeypatch.setattr("putsch_compile.optimize.configure_dspy", fake_configure)
     monkeypatch.setattr("putsch_compile.adapters.configure_dspy", fake_configure)
-    monkeypatch.setattr(
-        "putsch_compile.optimize._gepa_cls",
-        lambda: _FakeGEPA,
-    )
-    monkeypatch.setattr(
-        "putsch_compile.optimize.dspy.ChainOfThought",
-        fake_chain_of_thought,
-    )
+    monkeypatch.setattr("putsch_compile.optimize._gepa_cls", lambda: _FakeGEPA)
+    monkeypatch.setattr("putsch_compile.optimize.dspy.ChainOfThought", fake_chain_of_thought)
+    monkeypatch.setattr("putsch_compile.optimize.get_metric", fake_get_metric)
     return calls
