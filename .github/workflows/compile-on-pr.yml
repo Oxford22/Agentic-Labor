@@ -58,8 +58,7 @@ jobs:
           # so it fits the single-line "key=value" format required by $GITHUB_OUTPUT.
           names=$(printf '%s\n' "$changed" \
             | sed -E 's@.*/([a-z_]+)\.(jsonl|py)$@\1@' \
-            | grep -v '^_base$' \
-            | grep -v '^__init__$' \
+            | grep -Ev '^(_|$)' \
             | sort -u \
             | tr '\n' ' ' \
             | sed 's/[[:space:]]*$//')
@@ -68,11 +67,22 @@ jobs:
       - name: Run regression eval on affected signatures
         if: steps.affected.outputs.names != ''
         run: |
+          # A signature without a versioned golden (placeholders skip cleanly) means pytest
+          # collects 0 tests and exits 5. That is the expected pre-bootstrap state — not a
+          # failure. Any other non-zero exit is real and must bubble up.
+          status=0
           for name in ${{ steps.affected.outputs.names }}; do
             echo "::group::eval $name"
+            set +e
             pytest tests/test_regression.py -k "$name" -v
+            ec=$?
+            set -e
+            if [ "$ec" -ne 0 ] && [ "$ec" -ne 5 ]; then
+              status=$ec
+            fi
             echo "::endgroup::"
           done
+          exit "$status"
 
       - name: Optimizer integration smoke test
         run: pytest tests/test_optimizer_integration.py -v -m "not integration"
