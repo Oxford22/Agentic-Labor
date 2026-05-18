@@ -1,0 +1,199 @@
+# deploy/memory/docker-compose.yml
+#
+# Production-shaped local stack for putsch-memory.
+# In production this is rendered to a systemd-unit + docker compose on a
+# dedicated Hetzner Frankfurt host provisioned by deploy/memory/terraform/.
+# Image digests are pinned in the terraform module; here we use floating
+# minor tags for developer convenience. Do NOT use floating tags in prod.
+
+name: putsch-memory
+
+x-common-env: &common-env
+  TZ: Europe/Berlin
+  PUTSCH_REGION: eu-central-frankfurt
+  PUTSCH_DATA_RESIDENCY: DE
+
+services:
+
+  # -------------------------------------------------------------------------
+  # Neo4j 5 Enterprise — the substrate.
+  # Sized for the dev box; production sizing lives in terraform/.
+  # -------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5.22-enterprise
+    container_name: putsch-memory-neo4j
+    restart: unless-stopped
+    networks: [memory-net]
+    ports:
+      - "127.0.0.1:7474:7474"   # HTTP Browser — bound to loopback only
+      - "127.0.0.1:7687:7687"   # Bolt
+    environment:
+      <<: *common-env
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"                # Enterprise license accepted via terraform vars in prod
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}"
+      NEO4J_server_default__listen__address: 0.0.0.0
+      NEO4J_server_default__advertised__address: neo4j
+      NEO4J_server_bolt_advertised__address: "neo4j:7687"
+      NEO4J_server_http_advertised__address: "neo4j:7474"
+      NEO4J_server_memory_heap_initial__size: 4g
+      NEO4J_server_memory_heap_max__size: 8g
+      NEO4J_server_memory_pagecache_size: 8g
+      NEO4J_db_tx__log_rotation_retention__policy: "2 days 4G"
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_dbms_security_procedures_allowlist: "apoc.*,gds.*"
+      NEO4J_PLUGINS: '["apoc","graph-data-science"]'
+      NEO4J_metrics_enabled: "true"
+      NEO4J_metrics_prometheus_enabled: "true"
+      NEO4J_metrics_prometheus_endpoint: "0.0.0.0:2004"
+      # Online backup (Enterprise) — see backup/neo4j-backup.sh
+      NEO4J_dbms_backup_enabled: "true"
+      NEO4J_dbms_backup_listen__address: "0.0.0.0:6362"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-import:/var/lib/neo4j/import
+      - neo4j-plugins:/plugins
+      - ./backup:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "/var/lib/neo4j/bin/cypher-shell -u neo4j -p $$NEO4J_AUTH_PASSWORD 'RETURN 1' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          memory: 24G
+        reservations:
+          memory: 16G
+
+  # -------------------------------------------------------------------------
+  # Graphiti service — wraps the OSS engine behind an internal HTTP API
+  # so the agent code only depends on graphiti_client.py, not the engine.
+  # -------------------------------------------------------------------------
+  graphiti:
+    image: ghcr.io/getzep/graphiti:0.3-server
+    container_name: putsch-memory-graphiti
+    restart: unless-stopped
+    networks: [memory-net]
+    ports:
+      - "127.0.0.1:8765:8000"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      GRAPHITI_NEO4J_URI: "bolt://neo4j:7687"
+      GRAPHITI_NEO4J_USER: neo4j
+      GRAPHITI_NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}"
+      GRAPHITI_LLM_PROVIDER: mistral                       # Mistral La Plateforme is the only external API
+      GRAPHITI_LLM_BASE_URL: "https://api.mistral.ai/v1"
+      GRAPHITI_LLM_API_KEY: "${MISTRAL_API_KEY:?MISTRAL_API_KEY must be set}"
+      GRAPHITI_LLM_MODEL: "mistral-large-latest"
+      GRAPHITI_EMBEDDING_MODEL: "mistral-embed"
+      GRAPHITI_LOG_LEVEL: INFO
+      GRAPHITI_TELEMETRY_ENABLED: "false"                  # Do not phone home from Frankfurt VPC
+      GRAPHITI_MAX_DEPTH: "4"
+      GRAPHITI_MAX_RESULTS: "50"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # -------------------------------------------------------------------------
+  # Zep server — OPTIONAL. Adds the managed memory API on top of Graphiti.
+  # Enabled with `--profile zep`. Putsch starts without it; flip on later
+  # if/when the convenience layer is wanted.
+  # -------------------------------------------------------------------------
+  zep:
+    image: ghcr.io/getzep/zep:0.30
+    container_name: putsch-memory-zep
+    restart: unless-stopped
+    profiles: ["zep"]
+    networks: [memory-net]
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      ZEP_STORE_TYPE: graphiti
+      ZEP_GRAPHITI_URL: "http://graphiti:8000"
+      ZEP_AUTH_REQUIRED: "true"
+      ZEP_AUTH_SECRET: "${ZEP_AUTH_SECRET:?ZEP_AUTH_SECRET must be set}"
+      ZEP_LOG_LEVEL: INFO
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # Online backup sidecar — cron-driven point-in-time backups to local volume.
+  # In production the local volume is then shipped to encrypted Frankfurt S3.
+  # -------------------------------------------------------------------------
+  neo4j-backup:
+    image: neo4j:5.22-enterprise
+    container_name: putsch-memory-neo4j-backup
+    restart: unless-stopped
+    networks: [memory-net]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}"
+      BACKUP_INTERVAL_MINUTES: "15"
+      BACKUP_RETENTION_DAYS: "7"
+    volumes:
+      - ./backup:/backups
+      - ./backup/neo4j-backup.sh:/usr/local/bin/neo4j-backup.sh:ro
+    entrypoint: ["/bin/bash", "-c", "exec /usr/local/bin/neo4j-backup.sh"]
+
+  # -------------------------------------------------------------------------
+  # Prometheus scrape target — Neo4j publishes JMX + Prometheus on :2004.
+  # The cluster-wide Prometheus federation lives outside this compose.
+  # -------------------------------------------------------------------------
+  metrics-relay:
+    image: prom/node-exporter:v1.8.2
+    container_name: putsch-memory-metrics-relay
+    restart: unless-stopped
+    networks: [memory-net]
+    ports:
+      - "127.0.0.1:9100:9100"
+    command:
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.meminfo
+      - --collector.filesystem
+      - --collector.diskstats
+      - --collector.netdev
+
+volumes:
+  neo4j-data:
+    name: putsch-memory-neo4j-data
+  neo4j-logs:
+    name: putsch-memory-neo4j-logs
+  neo4j-import:
+    name: putsch-memory-neo4j-import
+  neo4j-plugins:
+    name: putsch-memory-neo4j-plugins
+
+networks:
+  memory-net:
+    name: putsch-memory-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

@@ -1,0 +1,34 @@
+[
+  {
+    "case_id": "R-001-ap-decision-replay",
+    "trace_id": "lf-trace-7c2a-001",
+    "trace_started_at": "2026-04-15T14:23:00+00:00",
+    "reads": [
+      {
+        "entity_id": "lieferant:DE111111111",
+        "business_time": "2026-04-15T14:23:00+00:00",
+        "expected_fact_id": "lieferant:DE111111111",
+        "expected_attribute_values": {"payment_terms_days": 45, "name": "Beispiel-Stahl GmbH"}
+      },
+      {
+        "entity_id": "konto:1200",
+        "business_time": "2026-04-15T14:23:00+00:00",
+        "expected_fact_id": "konto:1200",
+        "expected_attribute_values": {"account_type": "aktiv"}
+      }
+    ]
+  },
+  {
+    "case_id": "R-002-mahnverfahren-decision-replay",
+    "trace_id": "lf-trace-9d33-002",
+    "trace_started_at": "2025-11-02T08:00:00+00:00",
+    "reads": [
+      {
+        "entity_id": "kunde:DE222222222",
+        "business_time": "2025-11-02T08:00:00+00:00",
+        "expected_fact_id": "kunde:DE222222222",
+        "expected_attribute_values": {"owner_sachbearbeiter": "M-202", "escalation_level": "soft"}
+      }
+    ]
+  }
+]
