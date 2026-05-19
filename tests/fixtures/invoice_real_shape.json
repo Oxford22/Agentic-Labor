@@ -1,0 +1,93 @@
+{
+  "invoice_number": "RE-2026-04-00813",
+  "invoice_date": "2026-04-22",
+  "leistungsdatum": "2026-04-18",
+  "due_date": "2026-05-22",
+  "supplier": {
+    "name": "Schneider Werkzeugbau GmbH",
+    "street": "Industriestraße 47",
+    "postal_code": "70327",
+    "city": "Stuttgart",
+    "country": "DE",
+    "vat_id": "DE143789021",
+    "tax_number": "99012/34567"
+  },
+  "customer": {
+    "name": "Putsch GmbH",
+    "street": "Eisenstraße 17",
+    "postal_code": "58332",
+    "city": "Schwelm",
+    "country": "DE",
+    "vat_id": "DE124589637",
+    "tax_number": "352/5731/0027"
+  },
+  "line_items": [
+    {
+      "position": 1,
+      "description": "Präzisionsfräser HM, Ø 12 mm, beschichtet",
+      "quantity": "8",
+      "unit": "Stk",
+      "unit_price_net": "184.50",
+      "line_total_net": "1476.00",
+      "vat_rate": "0.19",
+      "vat_amount": "280.44",
+      "line_total_gross": "1756.44",
+      "article_number": "FR-HM-12-TIN",
+      "hs_code": "82077010"
+    },
+    {
+      "position": 2,
+      "description": "Werkzeugkalibrierung nach DIN ISO 9001 (Auditzyklus 04/2026)",
+      "quantity": "1",
+      "unit": "Pos",
+      "unit_price_net": "320.00",
+      "line_total_net": "320.00",
+      "vat_rate": "0.19",
+      "vat_amount": "60.80",
+      "line_total_gross": "380.80",
+      "article_number": "SVC-CAL-DIN9001"
+    },
+    {
+      "position": 3,
+      "description": "Verbrauchsmaterial — Kühlemulsion Ecocool, 25l Kanister",
+      "quantity": "3",
+      "unit": "Kanister",
+      "unit_price_net": "78.00",
+      "line_total_net": "234.00",
+      "vat_rate": "0.19",
+      "vat_amount": "44.46",
+      "line_total_gross": "278.46",
+      "article_number": "VM-ECO-25L"
+    },
+    {
+      "position": 4,
+      "description": "Versandkosten DHL-Spedition, Frankfurt -> Schwelm",
+      "quantity": "1",
+      "unit": "Pos",
+      "unit_price_net": "62.00",
+      "line_total_net": "62.00",
+      "vat_rate": "0.19",
+      "vat_amount": "11.78",
+      "line_total_gross": "73.78"
+    }
+  ],
+  "totals": {
+    "subtotal_net": "2092.00",
+    "vat_total": "397.48",
+    "total_gross": "2489.48",
+    "currency": "EUR"
+  },
+  "payment_terms": {
+    "net_days": 30,
+    "skonto_percent": "2.0",
+    "skonto_days": 10
+  },
+  "bank_details": {
+    "iban": "DE89370400440532013000",
+    "bic": "COBADEFFXXX",
+    "account_holder": "Schneider Werkzeugbau GmbH"
+  },
+  "purchase_order_reference": "PO-PUTSCH-2026-1142",
+  "delivery_note_reference": "LS-SW-2026-04-22",
+  "notes": "Skonto 2% bei Zahlung innerhalb 10 Tagen. Eigentumsvorbehalt gemäß §449 BGB."
+}
