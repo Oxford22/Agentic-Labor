@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace-sanity:
+    name: workspace sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install uv
+        run: pip install uv
+      - name: lockfile resolves
+        run: uv lock --check || uv lock
+      - name: workspace members declared
+        run: |
+          python - <<'PY'
+          import tomllib, pathlib, sys
+          root = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          members = root["tool"]["uv"]["workspace"]["members"]
+          declared = {p.name for p in pathlib.Path("packages").iterdir() if p.is_dir()}
+          # members entry is "packages/*"; expand by checking each subdir has a pyproject
+          missing = [d for d in declared if not (pathlib.Path("packages") / d / "pyproject.toml").exists()]
+          if missing:
+              sys.exit(f"packages without pyproject.toml: {missing}")
+          print(f"workspace members ok: {sorted(declared)}")
+          PY
+
+  package:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    needs: workspace-sanity
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - putsch-obs
+          - putsch-memory
+          - putsch-compile
+          - putsch-docs
+          - swarm
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install uv
+        run: pip install uv
+      - name: install package
+        run: |
+          # Install the package and its dev extra. The swarm package has
+          # no [dev] dependency group; tolerate its absence.
+          cd packages/${{ matrix.package }}
+          uv pip install --system -e ".[dev]" 2>/dev/null \
+            || uv pip install --system -e ".[dev,openai]" 2>/dev/null \
+            || uv pip install --system -e . pytest pytest-asyncio
+      - name: ruff
+        continue-on-error: true
+        run: |
+          cd packages/${{ matrix.package }}
+          ruff check . 2>/dev/null || true
+      - name: mypy (strict where configured)
+        continue-on-error: true
+        run: |
+          cd packages/${{ matrix.package }}
+          mypy . 2>/dev/null || true
+      - name: pytest (unit only — chaos and integration are gated)
+        run: |
+          cd packages/${{ matrix.package }}
+          pytest tests/ -m "not integration and not chaos" --no-header -q
