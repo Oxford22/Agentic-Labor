@@ -1,0 +1,74 @@
+#cloud-config
+# putsch-memory Neo4j node bootstrap — ${environment}
+# Idempotent. Reruns are safe.
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+  - awscli
+  - prometheus-node-exporter
+  - unattended-upgrades
+
+write_files:
+  - path: /etc/putsch/labels.env
+    permissions: "0644"
+    content: |
+      PUTSCH_ENV=${environment}
+      PUTSCH_REGION=eu-central-frankfurt
+      PUTSCH_DATA_RESIDENCY=DE
+      AUDIT_EMAIL=${audit_email}
+
+  - path: /etc/systemd/system/putsch-memory.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Putsch Memory (Neo4j + Graphiti) — managed by docker compose
+      Requires=docker.service
+      After=docker.service network-online.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      EnvironmentFile=/etc/putsch/secrets.env
+      WorkingDirectory=/opt/putsch-memory
+      ExecStart=/usr/bin/docker compose -f ${compose_path} up -d
+      ExecStop=/usr/bin/docker compose -f ${compose_path} down
+      TimeoutStartSec=600
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # --- mount NVMe volume for Neo4j data ---
+  - mkdir -p /var/lib/neo4j/data
+  - |
+      if ! grep -q "/var/lib/neo4j/data" /etc/fstab; then
+        echo "${neo4j_volume_dev} /var/lib/neo4j/data ext4 discard,nofail,defaults 0 0" >> /etc/fstab
+      fi
+  - mount -a
+
+  # --- install Docker Engine from upstream apt repo ---
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # --- ship logs out via vector to the Frankfurt log sink (placeholder) ---
+  - mkdir -p /opt/putsch-memory
+  - aws s3 cp s3://${backup_bucket}/bootstrap/docker-compose.yml ${compose_path}
+  - aws s3 cp s3://${backup_bucket}/bootstrap/secrets.env /etc/putsch/secrets.env --sse aws:kms
+
+  # --- enable + start ---
+  - systemctl daemon-reload
+  - systemctl enable putsch-memory.service
+  - systemctl start putsch-memory.service
+
+  # --- DPIA-relevant change notification ---
+  - |
+      echo "putsch-memory node $(hostname) provisioned at $(date -Iseconds)" | \
+        mail -s "[putsch-memory] node provisioned (${environment})" "${audit_email}" || true
