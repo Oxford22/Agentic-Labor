@@ -1,0 +1,208 @@
+name: putsch-langfuse-frankfurt
+
+# Self-hosted Langfuse for the Putsch Frankfurt VPC.
+#
+# Topology:
+#   - langfuse-web         : the Langfuse server (UI + REST + ingest)
+#   - langfuse-worker      : the async worker for evals + background jobs
+#   - clickhouse           : event store (1y+ retention enforced via TTL)
+#   - postgres             : metadata store (users, projects, dashboards)
+#   - postgres-vault       : separate DB for the redaction-token vault
+#   - redis                : queue for the worker
+#   - minio                : S3-compatible blob store for media + backups
+#   - otel-collector       : OTLP ingest sidecar; redaction processors live here
+#
+# All inter-service traffic stays on the `internal` network. Only the web
+# UI is exposed (and that, behind the Putsch reverse proxy / Tailscale).
+#
+# Versions are pinned. Bumping them is a runbook activity, not an
+# auto-update — see docs/runbook.md.
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres-vault:
+    <<: *restart
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: ${VAULT_POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${VAULT_POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${VAULT_POSTGRES_DB:?set in .env}
+    volumes:
+      - vault-data:/var/lib/postgresql/data
+      - ../../src/putsch_obs/vault/migrations:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${VAULT_POSTGRES_USER}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  clickhouse:
+    <<: *restart
+    image: clickhouse/clickhouse-server:24.8.4
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:?set in .env}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?set in .env}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set in .env}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      - ./clickhouse-ttl.xml:/etc/clickhouse-server/config.d/ttl.xml:ro
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  redis:
+    <<: *restart
+    image: redis:7.4-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set in .env}"]
+    volumes:
+      - redis-data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  minio:
+    <<: *restart
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+      MINIO_REGION: eu-central-fra
+    volumes:
+      - minio-data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  langfuse-web:
+    <<: *restart
+    image: langfuse/langfuse:2.94.0
+    depends_on:
+      postgres: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?set in .env}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set in .env}
+      SALT: ${SALT:?set in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_MIGRATION_URL: "clickhouse://clickhouse:9000"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: ${REDIS_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET:?set in .env}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: eu-central-fra
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      TELEMETRY_ENABLED: "false"   # no telemetry to upstream — EU sovereign
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [internal, exposed]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/public/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  langfuse-worker:
+    <<: *restart
+    image: langfuse/langfuse-worker:2.94.0
+    depends_on:
+      langfuse-web: { condition: service_healthy }
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: ${REDIS_PASSWORD}
+      SALT: ${SALT}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_BUCKET}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: eu-central-fra
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]   # worker has no HTTP surface
+      interval: 30s
+
+  otel-collector:
+    <<: *restart
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    command: ["--config=/etc/otel/otel-collector-config.yaml"]
+    volumes:
+      - ../otel/otel-collector-config.yaml:/etc/otel/otel-collector-config.yaml:ro
+    environment:
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?set in .env}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?set in .env}
+    ports:
+      - "127.0.0.1:4317:4317"  # OTLP gRPC
+      - "127.0.0.1:4318:4318"  # OTLP HTTP
+    networks: [internal, exposed]
+    depends_on:
+      langfuse-web: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 3s
+      retries: 6
+
+volumes:
+  postgres-data:
+  vault-data:
+  clickhouse-data:
+  clickhouse-logs:
+  redis-data:
+  minio-data:
+
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  exposed:
+    driver: bridge

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!--
+  ClickHouse TTL policy by trace retention class.
+
+  EU AI Act Art. 12 requires high-risk system logs for the lifetime of
+  the system. Putsch's interpretation, signed off by Counsel and the
+  Betriebsrat:
+
+    * high_risk    HR/payroll-adjacent crews         10 years
+    * limited_risk customer-facing crews              3 years
+    * development  dev/test traces                   90 days
+
+  The policy is applied via ALTER TABLE in the Langfuse migration job
+  (separate, see docs/runbook.md). This file pins the SETTINGS the cluster
+  needs for TTL move operations.
+-->
+<clickhouse>
+    <merge_tree>
+        <ttl_only_drop_parts>1</ttl_only_drop_parts>
+        <materialize_ttl_recalculate_only>1</materialize_ttl_recalculate_only>
+    </merge_tree>
+
+    <profiles>
+        <default>
+            <max_partitions_per_insert_block>1024</max_partitions_per_insert_block>
+            <!-- safety: refuse a query that scans more than 100 GiB unless
+                 the caller bumps it explicitly. dashboards must aggregate. -->
+            <max_bytes_to_read>107374182400</max_bytes_to_read>
+        </default>
+    </profiles>
+
+    <!-- TTL settings are applied per-table via ALTER, not here. This file
+         just makes the cluster honor them efficiently. -->
+</clickhouse>
