@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List
 
+from trust import WORKER_HEADER
+
 from .models import ModelRouter
 
 
@@ -27,7 +29,10 @@ class Worker:
     def invoke(self, router: ModelRouter, instruction: str) -> str:
         model = router.for_role(self.role)
         messages = [
-            {"role": "system", "content": self.system_prompt},
+            {
+                "role": "system",
+                "content": WORKER_HEADER + "\n\n" + self.system_prompt,
+            },
             {"role": "user", "content": instruction},
         ]
         return model.invoke(messages)

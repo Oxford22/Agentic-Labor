@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass
 from typing import Iterable
 
+from trust import ORCHESTRATOR_HEADER, Source, wrap_external
+
 from .ledger import ProgressLedger, TaskLedger
 from .models import ModelRouter
 from .prompts import (
@@ -51,7 +53,10 @@ class Orchestrator:
         return self.router.for_role(self.role)
 
     def _ask_json(self, prompt: str) -> dict:
-        raw = self._model().invoke([{"role": "user", "content": prompt}])
+        raw = self._model().invoke([
+            {"role": "system", "content": ORCHESTRATOR_HEADER},
+            {"role": "user", "content": prompt},
+        ])
         return _coerce_json(raw)
 
     # ----- outer loop -----
@@ -134,7 +139,10 @@ class Orchestrator:
             task=state["task"],
             transcript=_format_transcript(state.get("transcript", [])),
         )
-        answer = self._model().invoke([{"role": "user", "content": prompt}])
+        answer = self._model().invoke([
+            {"role": "system", "content": ORCHESTRATOR_HEADER},
+            {"role": "user", "content": prompt},
+        ])
         return {"final_answer": answer.strip()}
 
     # ----- routing -----
@@ -158,10 +166,26 @@ class Orchestrator:
 
 
 def _format_transcript(transcript: Iterable[TranscriptEntry]) -> str:
+    """Format transcript for inclusion in an orchestrator prompt.
+
+    Worker replies are wrapped in <external_content source="worker"> so that
+    a worker reply carrying an injected directive (e.g. an OCR'd invoice
+    with adversarial text) cannot redirect the orchestrator's next inner-loop
+    decision. The orchestrator's own dispatch messages are not wrapped -
+    they come from a trusted source (the orchestrator itself).
+    """
+
     entries = list(transcript)
     if not entries:
         return "(empty)"
-    return "\n".join(f"[{speaker}] {content}" for speaker, content in entries)
+    lines = []
+    for speaker, content in entries:
+        if speaker == "orchestrator":
+            lines.append(f"[orchestrator] {content}")
+        else:
+            wrapped = wrap_external(Source.WORKER, content)
+            lines.append(f"[{speaker}] {wrapped}")
+    return "\n".join(lines)
 
 
 _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
