@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "D-001-same-vendor-different-sap-numbers",
+    "description": "Beispiel-Stahl GmbH exists in Hagen SAP as L-4711, in Asheville SAP as V-90021, and in Poggibonsi SAP as F-3300. All share USt-IdNr DE111111111. Names and addresses match modulo whitespace and casing. No real disagreements — should NOT require human reconciliation.",
+    "candidate_key": "DE111111111",
+    "key_kind": "ust_id_nr",
+    "expected_disagreement_attributes": [],
+    "expected_requires_human": false
+  },
+  {
+    "case_id": "D-002-payment-terms-drift",
+    "description": "Same vendor DE333333333 has 30-day payment terms in Hagen SAP and 45-day in Poggibonsi SAP. Should flag payment_terms_days as a disagreement.",
+    "candidate_key": "DE333333333",
+    "key_kind": "ust_id_nr",
+    "expected_disagreement_attributes": ["payment_terms_days"],
+    "expected_requires_human": true
+  },
+  {
+    "case_id": "D-003-bank-iban-disagreement",
+    "description": "Vendor DE444444444 has different IBANs in Asheville and Valladolid — almost certainly a master-data error or a recent change not yet propagated. High-risk: payments could go to the wrong account.",
+    "candidate_key": "DE444444444",
+    "key_kind": "ust_id_nr",
+    "expected_disagreement_attributes": ["bank_iban"],
+    "expected_requires_human": true
+  }
+]

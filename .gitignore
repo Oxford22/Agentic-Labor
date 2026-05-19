@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local Terraform state
+deploy/memory/terraform/.terraform/
+deploy/memory/terraform/*.tfstate
+deploy/memory/terraform/*.tfstate.backup
+deploy/memory/terraform/.terraform.lock.hcl
+
+# Local Neo4j
+deploy/memory/backup/*
+!deploy/memory/backup/neo4j-backup.sh
+
+# Logs
+*.log

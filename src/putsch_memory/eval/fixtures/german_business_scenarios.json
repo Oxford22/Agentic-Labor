@@ -1,0 +1,83 @@
+[
+  {
+    "case_id": "T-001-vendor-payment-terms-pre-reorg",
+    "description": "Vendor payment terms changed during the Q1 2025 reorg; question asks for the pre-reorg value.",
+    "seeds": [
+      {
+        "entity_id": "lieferant:DE111111111",
+        "label": "Lieferant",
+        "attributes": {"name": "Beispiel-Stahl GmbH", "payment_terms_days": 30, "ust_id_nr": "DE111111111"},
+        "business_time_from": "2024-01-01T00:00:00+00:00",
+        "business_time_to": "2025-03-31T23:59:59+00:00",
+        "source_system": "sap:hagen"
+      },
+      {
+        "entity_id": "lieferant:DE111111111",
+        "label": "Lieferant",
+        "attributes": {"name": "Beispiel-Stahl GmbH", "payment_terms_days": 45, "ust_id_nr": "DE111111111"},
+        "business_time_from": "2025-04-01T00:00:00+00:00",
+        "business_time_to": null,
+        "source_system": "sap:hagen"
+      }
+    ],
+    "question_entity_id": "lieferant:DE111111111",
+    "question_attribute": "payment_terms_days",
+    "question_business_time": "2025-02-15T00:00:00+00:00",
+    "expected_value": 30,
+    "rationale": "Pre-reorg state on 15 Feb 2025 should still show 30-day terms; the 45-day fact's business_time_from is 1 Apr 2025."
+  },
+  {
+    "case_id": "T-002-account-owner-rotation",
+    "description": "Sachbearbeiter rotation: account moved from M-101 to M-202 on 1 Sep 2025.",
+    "seeds": [
+      {
+        "entity_id": "kunde:DE222222222",
+        "label": "Kunde",
+        "attributes": {"owner_sachbearbeiter": "M-101", "ust_id_nr": "DE222222222", "name": "Kunde GmbH"},
+        "business_time_from": "2024-01-01T00:00:00+00:00",
+        "business_time_to": "2025-08-31T23:59:59+00:00",
+        "source_system": "sap:hagen"
+      },
+      {
+        "entity_id": "kunde:DE222222222",
+        "label": "Kunde",
+        "attributes": {"owner_sachbearbeiter": "M-202", "ust_id_nr": "DE222222222", "name": "Kunde GmbH"},
+        "business_time_from": "2025-09-01T00:00:00+00:00",
+        "business_time_to": null,
+        "source_system": "sap:hagen"
+      }
+    ],
+    "question_entity_id": "kunde:DE222222222",
+    "question_attribute": "owner_sachbearbeiter",
+    "question_business_time": "2025-08-15T00:00:00+00:00",
+    "expected_value": "M-101",
+    "rationale": "Before the 1 Sep 2025 handover, M-101 still owns the account."
+  },
+  {
+    "case_id": "T-003-hs-code-update",
+    "description": "TARIC HS code updated from 8482.10.10 (six-digit hierarchy 848210) to 8482.10.90 in 2025-Q4.",
+    "seeds": [
+      {
+        "entity_id": "material:MAT-4711",
+        "label": "Material",
+        "attributes": {"sap_material_number": "MAT-4711", "description": "Kugellager", "hs_code": "848210"},
+        "business_time_from": "2023-01-01T00:00:00+00:00",
+        "business_time_to": "2025-09-30T23:59:59+00:00",
+        "source_system": "sap:hagen"
+      },
+      {
+        "entity_id": "material:MAT-4711",
+        "label": "Material",
+        "attributes": {"sap_material_number": "MAT-4711", "description": "Kugellager", "hs_code": "848290"},
+        "business_time_from": "2025-10-01T00:00:00+00:00",
+        "business_time_to": null,
+        "source_system": "sap:hagen"
+      }
+    ],
+    "question_entity_id": "material:MAT-4711",
+    "question_attribute": "hs_code",
+    "question_business_time": "2025-07-01T00:00:00+00:00",
+    "expected_value": "848210",
+    "rationale": "Before TARIC update, old HS code applies."
+  }
+]
