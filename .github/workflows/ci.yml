@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  lint-type-test:
+    name: lint + type + test (${{ matrix.package }} / py${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+        package:
+          - putsch_contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install uv (pinned)
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
+
+      - name: Sync workspace
+        run: uv sync --all-extras --dev
+
+      - name: Ruff
+        run: uv run ruff check packages/${{ matrix.package }} tests scripts
+
+      - name: Ruff format check
+        run: uv run ruff format --check packages/${{ matrix.package }} tests scripts
+
+      - name: Mypy
+        run: uv run mypy packages/${{ matrix.package }}/src
+
+      - name: Pytest (package)
+        run: uv run pytest packages/${{ matrix.package }}/tests -v
+
+  workspace-tests:
+    name: workspace integration + guardrail tests
+    runs-on: ubuntu-24.04
+    needs: lint-type-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
+
+      - name: Sync workspace
+        run: uv sync --all-extras --dev
+
+      - name: Pytest (workspace tests + guardrail script tests)
+        run: uv run pytest tests/ -v

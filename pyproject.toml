@@ -1,0 +1,81 @@
+[project]
+name = "agentic-labor"
+version = "0.1.0"
+description = "EU-sovereign multi-agent back-office automation for Putsch Mittelstand"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+putsch-contracts = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "hypothesis>=6.115.0",
+    "pyyaml>=6.0.2",
+    "tomli>=2.0.2 ; python_version < '3.11'",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["packages/*/build", "packages/*/dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # flake8-bandit
+    "RUF", # ruff-specific
+]
+ignore = [
+    "S101", # asserts are fine in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "N802", "N803"]
+"**/tests/**" = ["S", "N802", "N803"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests", "packages"]
+asyncio_mode = "auto"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "integration: cross-package integration test (may require live external services in some modules)",
+    "e2e: full end-to-end workflow test",
+    "slow: takes >5s",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["packages"]

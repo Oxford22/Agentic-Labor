@@ -1,0 +1,47 @@
+name: Guardrails
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  forbidden-deps:
+    name: forbidden-deps (no Anthropic / OpenAI in production paths)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run guard
+        run: python scripts/check_forbidden_deps.py
+
+  workflow-residency:
+    name: workflow-residency (EU regions + no :latest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run guard
+        run: python scripts/check_workflow_residency.py
+
+  contracts-imported:
+    name: contracts-imported (every module test imports putsch_contracts)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run guard
+        run: python scripts/check_contracts_imported.py
