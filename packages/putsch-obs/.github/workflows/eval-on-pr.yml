@@ -1,0 +1,162 @@
+name: eval-on-pr
+
+# Run the eval suite on every PR that touches anything that could change
+# model behaviour: DSPy signatures, prompts, model bindings, eval datasets,
+# or the integrations that shape inputs to the models.
+#
+# Results are pushed to Langfuse as a tagged dataset run (tag:
+# `pr-<number>`). The job posts a results-vs-main diff as a PR comment.
+# Regressions of more than the configured threshold block merge.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/putsch_obs/integrations/dspy.py"
+      - "src/putsch_obs/integrations/litellm.py"
+      - "src/putsch_obs/eval/**"
+      - "evals/datasets/**"
+      - "**/prompts/**"
+      - "**/signatures/**"
+      - "**/models.py"
+      - ".github/workflows/eval-on-pr.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: eval-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PUTSCH_OBS_DEPLOYMENT_ENVIRONMENT: development
+      PUTSCH_OBS_REDACTION_MODE: deterministic_only
+      PUTSCH_OBS_LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+      PUTSCH_OBS_LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      PUTSCH_OBS_LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      PUTSCH_OBS_JUDGE_API_KEY: ${{ secrets.JUDGE_API_KEY }}
+      PUTSCH_OBS_OTEL_EXPORTER_ENDPOINT: http://localhost:4318
+      LOG_LEVEL: INFO
+
+    strategy:
+      matrix:
+        dataset: [invoice_extraction, mahnung_tone, customs_hs, datev_booking_codes]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to compare against main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install
+        # Only the extras the eval harness actually exercises. Adding
+        # `[integrations]` here would couple PR latency to every wheel
+        # in the matrix — a single graphiti-core release without a wheel
+        # for the new Python minor would block every PR.
+        run: |
+          uv venv
+          uv pip install -e ".[dspy,litellm,dev]"
+
+      - name: Lint dataset (syntactic)
+        run: |
+          uv run python -c "
+          from putsch_obs.eval.datasets import load_dataset
+          ds = load_dataset('${{ matrix.dataset }}')
+          print(f'{ds.name}@{ds.version} — {len(ds)} items OK')
+          "
+
+      - name: Run eval — head
+        id: eval_head
+        run: |
+          uv run putsch-obs-eval \
+            --dataset ${{ matrix.dataset }} \
+            --target-kind dspy \
+            --target-name pr-${{ github.event.pull_request.number }}-${{ matrix.dataset }} \
+            --target-version ${{ github.sha }} \
+            --target-fn putsch_obs.eval.harness_targets:identity_target \
+            --concurrency 4 \
+            > head.json
+
+      - name: Fetch main baseline
+        id: baseline
+        continue-on-error: true
+        run: |
+          git fetch origin main
+          git checkout origin/main -- evals/datasets/${{ matrix.dataset }}.jsonl || true
+          uv run putsch-obs-eval \
+            --dataset ${{ matrix.dataset }} \
+            --target-kind dspy \
+            --target-name main-${{ matrix.dataset }} \
+            --target-version baseline-$(git rev-parse origin/main) \
+            --target-fn putsch_obs.eval.harness_targets:identity_target \
+            --concurrency 4 \
+            --no-sync \
+            > baseline.json
+
+      - name: Diff
+        id: diff
+        # FIRST_TIME_PACKAGE is a one-shot allowance: while main hasn't yet
+        # received the eval harness, the baseline run is structurally
+        # impossible. Remove this env entry — and the `--first-time-package`
+        # flag — in the PR that lands the harness on main.
+        env:
+          FIRST_TIME_PACKAGE: "true"
+        run: |
+          ARGS="--head head.json --baseline baseline.json --regression-threshold 0.05 --output diff.md"
+          if [ "$FIRST_TIME_PACKAGE" = "true" ]; then
+            ARGS="$ARGS --first-time-package"
+          fi
+          uv run python -m putsch_obs.eval.harness_diff $ARGS
+          echo "gate_pass=$(jq .gate_pass -r diff.json)" >> "$GITHUB_OUTPUT"
+          echo "baseline_status=$(jq .baseline_status -r diff.json)" >> "$GITHUB_OUTPUT"
+          echo "regressed=$(jq .regressed -r diff.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('diff.md', 'utf8');
+            const marker = `<!-- putsch-eval:${{ matrix.dataset }} -->`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            const full = `${marker}\n${body}`;
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: full,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: full,
+              });
+            }
+
+      - name: Gate
+        if: steps.diff.outputs.gate_pass != 'true'
+        run: |
+          echo "::error::Eval gate failed on ${{ matrix.dataset }}: baseline_status=${{ steps.diff.outputs.baseline_status }} regressed=${{ steps.diff.outputs.regressed }}"
+          exit 1

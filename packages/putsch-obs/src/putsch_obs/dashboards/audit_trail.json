@@ -1,0 +1,73 @@
+{
+  "slug": "audit_trail",
+  "name": "Audit trail — vault un-redactions",
+  "description": "Append-only WORM audit log of every PII un-redaction. Required for DSGVO Art. 32 + EU AI Act Art. 12.",
+  "tags": ["putsch", "audit", "compliance", "dsgvo"],
+  "owner_team": "datenschutz",
+  "refresh_interval_seconds": 60,
+  "time_range": "last_30d",
+  "widgets": [
+    {
+      "id": "events_total",
+      "title": "Un-redaction events (30d)",
+      "type": "single_value",
+      "query": {
+        "metric": "count",
+        "datasource": "vault_audit_log"
+      }
+    },
+    {
+      "id": "events_by_outcome",
+      "title": "Events by outcome",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "outcome",
+        "datasource": "vault_audit_log"
+      }
+    },
+    {
+      "id": "events_by_actor",
+      "title": "Events by actor (top 10)",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "actor",
+        "limit": 10,
+        "datasource": "vault_audit_log"
+      }
+    },
+    {
+      "id": "events_by_category",
+      "title": "Events by PII category",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "category",
+        "datasource": "vault_audit_log"
+      }
+    },
+    {
+      "id": "denied_events",
+      "title": "Denied un-redactions",
+      "type": "single_value",
+      "query": {
+        "metric": "count",
+        "where": [{"field": "outcome", "op": "eq", "value": "denied"}],
+        "datasource": "vault_audit_log"
+      },
+      "thresholds": [{"label": "investigate", "value": 1, "color": "red", "comparator": "gt"}]
+    },
+    {
+      "id": "chain_integrity",
+      "title": "Chain integrity (last verify)",
+      "type": "single_value",
+      "query": {
+        "metric": "max",
+        "field": "chain_integrity_ok",
+        "datasource": "vault_chain_verify"
+      },
+      "thresholds": [{"label": "intact", "value": 1, "color": "green", "comparator": "eq"}]
+    }
+  ]
+}

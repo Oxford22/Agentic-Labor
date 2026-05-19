@@ -1,0 +1,181 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "putsch-obs"
+version = "0.1.0"
+description = "Putsch Group observability + evaluation backbone (Langfuse self-hosted, OTel-native, GDPR-by-construction)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Putsch Platform Engineering" }]
+keywords = ["langfuse", "opentelemetry", "agentic", "observability", "gdpr", "eu-ai-act"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.3,<3",
+    "structlog>=24.1",
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp>=1.27",
+    "opentelemetry-instrumentation>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
+    "opentelemetry-instrumentation-requests>=0.48b0",
+    "opentelemetry-instrumentation-psycopg>=0.48b0",
+    "langfuse>=2.50,<3",
+    "httpx>=0.27",
+    "tenacity>=8.5",
+    "anyio>=4.4",
+    "psycopg[binary]>=3.2",
+    "cryptography>=43.0",
+    "rich>=13.7",
+    "click>=8.1",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Per-framework extras. Install only what you need so a broken wheel in
+# one framework doesn't take down the entire install. CI uses these to
+# isolate failures: when graphiti-core drops a wheel for the new Python
+# minor, `putsch-obs[memory]` fails alone — `putsch-obs[crewai]` is
+# unaffected and the AP-crew workflow keeps shipping.
+crewai = ["crewai>=0.55"]
+langgraph = ["langgraph>=0.2", "langchain-core>=0.3"]
+dspy = ["dspy-ai>=2.5"]
+litellm = ["litellm>=1.50"]
+docling = ["docling>=2.0; python_version >= '3.11'"]
+memory = ["zep-cloud>=2.0", "graphiti-core>=0.5"]
+# Meta-extra: everything. Use only in environments that genuinely want
+# the full surface (e.g. the dev workstation, the eval CI matrix when
+# the dataset crosses framework boundaries).
+integrations = [
+    "putsch-obs[crewai]",
+    "putsch-obs[langgraph]",
+    "putsch-obs[dspy]",
+    "putsch-obs[litellm]",
+    "putsch-obs[docling]",
+    "putsch-obs[memory]",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-benchmark>=4.0",
+    "pytest-mock>=3.14",
+    "hypothesis>=6.108",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "respx>=0.21",
+]
+
+[project.scripts]
+putsch-obs-init = "putsch_obs.cli:main"
+putsch-obs-dashboards-apply = "putsch_obs.dashboards.apply:cli"
+putsch-obs-dsgvo-emit = "putsch_obs.dsgvo.generator:cli"
+putsch-obs-eval = "putsch_obs.eval.runners:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/putsch_obs"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/putsch_obs",
+    "evals/datasets",
+    "deploy",
+    "docs",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+no_implicit_reexport = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "crewai.*",
+    "langgraph.*",
+    "dspy.*",
+    "litellm.*",
+    "docling.*",
+    "zep_cloud.*",
+    "graphiti_core.*",
+    "hypothesis.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["evals/datasets"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",       # pycodestyle / pyflakes
+    "I",                 # isort
+    "B",                 # bugbear
+    "UP",                # pyupgrade
+    "ASYNC",             # async correctness
+    "S",                 # bandit
+    "C4",                # comprehensions
+    "RET", "SIM",
+    "TCH",               # type-checking imports
+    "PT",                # pytest style
+]
+ignore = [
+    "S101",              # asserts in tests are fine
+    "S105",              # hardcoded-secret false positives in tests
+    "S311",              # PRNG for non-crypto (test fixtures only)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PT004"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config -q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "perf: performance-sensitive tests (slow on cold caches)",
+    "integration: requires a running Langfuse stack",
+    "chaos: simulated failure tests",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:langfuse.*",
+    "ignore::DeprecationWarning:opentelemetry.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/putsch_obs"]
+omit = ["src/putsch_obs/cli.py"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

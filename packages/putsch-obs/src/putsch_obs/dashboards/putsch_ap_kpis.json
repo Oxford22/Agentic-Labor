@@ -1,0 +1,108 @@
+{
+  "slug": "putsch_ap_kpis",
+  "name": "AP — Invoice KPIs",
+  "description": "Accounts-Payable crew operational KPIs. Owner: AP platform team.",
+  "tags": ["putsch", "ap", "kpi", "production"],
+  "owner_team": "ap-platform",
+  "refresh_interval_seconds": 60,
+  "time_range": "last_24h",
+  "filters_default": [
+    {
+      "field": "putsch.kind",
+      "op": "in",
+      "value": ["crew", "agent", "task", "generation"]
+    },
+    {"field": "service.name", "op": "eq", "value": "ap-crew"}
+  ],
+  "widgets": [
+    {
+      "id": "invoice_volume",
+      "title": "Invoice volume (24h)",
+      "type": "single_value",
+      "query": {
+        "metric": "count_distinct",
+        "field": "trace_id",
+        "where": [{"field": "name", "op": "eq", "value": "crewai.crew"}]
+      },
+      "thresholds": [
+        {"label": "expected_min", "value": 50, "color": "amber", "comparator": "lt"}
+      ]
+    },
+    {
+      "id": "straight_through_rate",
+      "title": "Straight-through %",
+      "type": "single_value",
+      "query": {
+        "metric": "ratio",
+        "numerator": {
+          "field": "trace_id",
+          "where": [
+            {"field": "name", "op": "eq", "value": "crewai.crew"},
+            {"field": "putsch.exception", "op": "neq", "value": true}
+          ]
+        },
+        "denominator": {
+          "field": "trace_id",
+          "where": [{"field": "name", "op": "eq", "value": "crewai.crew"}]
+        }
+      },
+      "format": "percent",
+      "thresholds": [
+        {"label": "sla", "value": 0.85, "color": "red", "comparator": "lt"}
+      ]
+    },
+    {
+      "id": "exception_rate",
+      "title": "Exception rate",
+      "type": "single_value",
+      "query": {
+        "metric": "ratio",
+        "numerator": {
+          "field": "trace_id",
+          "where": [{"field": "putsch.exception", "op": "eq", "value": true}]
+        },
+        "denominator": {
+          "field": "trace_id",
+          "where": [{"field": "name", "op": "eq", "value": "crewai.crew"}]
+        }
+      },
+      "format": "percent",
+      "thresholds": [{"label": "warn", "value": 0.10, "color": "red", "comparator": "gt"}]
+    },
+    {
+      "id": "cost_per_invoice",
+      "title": "Cost / invoice (EUR)",
+      "type": "single_value",
+      "query": {
+        "metric": "sum_per_trace",
+        "field": "gen_ai.usage.cost_eur",
+        "where": [{"field": "name", "op": "eq", "value": "crewai.crew"}]
+      },
+      "format": "currency_eur",
+      "thresholds": [{"label": "budget", "value": 0.30, "color": "amber", "comparator": "gt"}]
+    },
+    {
+      "id": "latency_p50_p95",
+      "title": "Crew latency p50 / p95 (s)",
+      "type": "timeseries",
+      "query": {
+        "metric": "percentiles",
+        "field": "duration_ms",
+        "percentiles": [0.5, 0.95],
+        "where": [{"field": "name", "op": "eq", "value": "crewai.crew"}],
+        "interval": "1h"
+      },
+      "format": "seconds"
+    },
+    {
+      "id": "exception_taxonomy",
+      "title": "Exceptions by reason",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "putsch.exception_reason",
+        "where": [{"field": "putsch.exception", "op": "eq", "value": true}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+# Pre-commit hooks for putsch-compile. Same checks the compile-on-pr workflow runs, locally on
+# every commit. Install once with: pre-commit install
+#
+# The dataset schema validator catches a missing `labeled_by` on a row before it ever reaches CI,
+# which is the single most common shape for an unmergeable PR.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        args: [--strict]
+        files: ^src/putsch_compile/
+        additional_dependencies:
+          - pydantic>=2.7
+          - pydantic-settings>=2.4
+          - structlog>=24.1
+          - sqlalchemy[asyncio]>=2.0.30
+          - types-PyYAML
+
+  - repo: local
+    hooks:
+      - id: validate-datasets
+        name: Validate eval datasets
+        entry: putsch-compile validate-datasets
+        language: system
+        files: ^evals/datasets/.*\.jsonl$
+        pass_filenames: false

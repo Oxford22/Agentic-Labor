@@ -1,0 +1,12 @@
+{
+  "signature_name": "classify_hs_code",
+  "signature_version": "1.0.0",
+  "signature_version_hash": "PLACEHOLDER_RECOMPILE_TO_FILL",
+  "model": "qwen/qwen3-14b-instruct",
+  "compiled_instruction": "(populated on first compile — re-run scripts/seed_golden.py)",
+  "dataset_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "seed": 42,
+  "holdout_accuracy": 0.88,
+  "cost_eur_per_call": 0.0001,
+  "_note": "Placeholder golden. The first nightly-compile run replaces this file via scripts/seed_golden.py — keep the schema, GEPA fills the values."
+}
