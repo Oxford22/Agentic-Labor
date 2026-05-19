@@ -43,15 +43,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Per-framework extras. Install only what you need so a broken wheel in
+# one framework doesn't take down the entire install. CI uses these to
+# isolate failures: when graphiti-core drops a wheel for the new Python
+# minor, `putsch-obs[memory]` fails alone — `putsch-obs[crewai]` is
+# unaffected and the AP-crew workflow keeps shipping.
+crewai = ["crewai>=0.55"]
+langgraph = ["langgraph>=0.2", "langchain-core>=0.3"]
+dspy = ["dspy-ai>=2.5"]
+litellm = ["litellm>=1.50"]
+docling = ["docling>=2.0; python_version >= '3.11'"]
+memory = ["zep-cloud>=2.0", "graphiti-core>=0.5"]
+# Meta-extra: everything. Use only in environments that genuinely want
+# the full surface (e.g. the dev workstation, the eval CI matrix when
+# the dataset crosses framework boundaries).
 integrations = [
-    "crewai>=0.55",
-    "langgraph>=0.2",
-    "langchain-core>=0.3",
-    "dspy-ai>=2.5",
-    "litellm>=1.50",
-    "docling>=2.0; python_version >= '3.11'",
-    "zep-cloud>=2.0",
-    "graphiti-core>=0.5",
+    "putsch-obs[crewai]",
+    "putsch-obs[langgraph]",
+    "putsch-obs[dspy]",
+    "putsch-obs[litellm]",
+    "putsch-obs[docling]",
+    "putsch-obs[memory]",
 ]
 dev = [
     "pytest>=8.3",

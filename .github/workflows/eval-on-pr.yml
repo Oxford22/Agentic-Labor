@@ -62,9 +62,13 @@ jobs:
         uses: astral-sh/setup-uv@v3
 
       - name: Install
+        # Only the extras the eval harness actually exercises. Adding
+        # `[integrations]` here would couple PR latency to every wheel
+        # in the matrix — a single graphiti-core release without a wheel
+        # for the new Python minor would block every PR.
         run: |
           uv venv
-          uv pip install -e ".[integrations,dev]"
+          uv pip install -e ".[dspy,litellm,dev]"
 
       - name: Lint dataset (syntactic)
         run: |
@@ -104,11 +108,20 @@ jobs:
 
       - name: Diff
         id: diff
+        # FIRST_TIME_PACKAGE is a one-shot allowance: while main hasn't yet
+        # received the eval harness, the baseline run is structurally
+        # impossible. Remove this env entry — and the `--first-time-package`
+        # flag — in the PR that lands the harness on main.
+        env:
+          FIRST_TIME_PACKAGE: "true"
         run: |
-          uv run python -m putsch_obs.eval.harness_diff \
-            --head head.json --baseline baseline.json \
-            --regression-threshold 0.05 \
-            --output diff.md
+          ARGS="--head head.json --baseline baseline.json --regression-threshold 0.05 --output diff.md"
+          if [ "$FIRST_TIME_PACKAGE" = "true" ]; then
+            ARGS="$ARGS --first-time-package"
+          fi
+          uv run python -m putsch_obs.eval.harness_diff $ARGS
+          echo "gate_pass=$(jq .gate_pass -r diff.json)" >> "$GITHUB_OUTPUT"
+          echo "baseline_status=$(jq .baseline_status -r diff.json)" >> "$GITHUB_OUTPUT"
           echo "regressed=$(jq .regressed -r diff.json)" >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
@@ -142,8 +155,8 @@ jobs:
               });
             }
 
-      - name: Fail on regression
-        if: steps.diff.outputs.regressed == 'true'
+      - name: Gate
+        if: steps.diff.outputs.gate_pass != 'true'
         run: |
-          echo "::error::Eval regression detected on ${{ matrix.dataset }}"
+          echo "::error::Eval gate failed on ${{ matrix.dataset }}: baseline_status=${{ steps.diff.outputs.baseline_status }} regressed=${{ steps.diff.outputs.regressed }}"
           exit 1

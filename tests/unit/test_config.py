@@ -40,3 +40,19 @@ def test_endpoint_outside_frankfurt_is_rejected(
     monkeypatch.setenv("PUTSCH_OBS_LANGFUSE_HOST", "https://app.langfuse.com")
     with pytest.raises(Exception):
         PutschObsSettings()
+
+
+def test_empty_string_url_env_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CI scenario: `LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}` produces an
+    empty string when the secret is unset. Settings must fall back to the
+    declared default instead of failing AnyHttpUrl validation."""
+    monkeypatch.setenv("PUTSCH_OBS_LANGFUSE_HOST", "")
+    monkeypatch.setenv("PUTSCH_OBS_OTEL_EXPORTER_ENDPOINT", "   ")
+    cfg = PutschObsSettings()
+    assert cfg.langfuse_host is not None
+    assert "langfuse" in str(cfg.langfuse_host)
+    assert "otel" in str(cfg.otel_exporter_endpoint) or "4318" in str(
+        cfg.otel_exporter_endpoint
+    )

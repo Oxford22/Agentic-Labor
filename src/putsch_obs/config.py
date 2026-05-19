@@ -25,6 +25,7 @@ from pydantic import (
     Field,
     PostgresDsn,
     SecretStr,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -200,6 +201,26 @@ class PutschObsSettings(BaseSettings):
     perf_budget_tool_p99_us: float = Field(default=500.0)
 
     # ── Validation ───────────────────────────────────────────────────────
+
+    # CI commonly wires URL settings from secrets (e.g. ``LANGFUSE_HOST:
+    # ${{ secrets.LANGFUSE_HOST }}``). When the secret is unset, GitHub
+    # passes an empty string — which pydantic-settings DOES treat as
+    # "set", so it overrides our default and then fails AnyHttpUrl
+    # validation. Coerce empty / whitespace-only values back to the
+    # field's declared default before AnyHttpUrl runs.
+    @field_validator(
+        "langfuse_host",
+        "otel_exporter_endpoint",
+        "redaction_llm_endpoint",
+        "judge_api_base",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_blank_url(cls, v: Any, info: ValidationInfo) -> Any:
+        if isinstance(v, str) and not v.strip():
+            field = cls.model_fields[info.field_name]
+            return field.default
+        return v
 
     @field_validator("langfuse_host", "otel_exporter_endpoint")
     @classmethod

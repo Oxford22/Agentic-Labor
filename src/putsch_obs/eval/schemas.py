@@ -106,9 +106,16 @@ class Rubric(BaseModel):
 
 
 class Judgement(BaseModel):
-    """Output of the LLM judge for a single item."""
+    """Output of the LLM judge for a single item.
 
-    model_config = ConfigDict(extra="allow")  # allow ad-hoc sub-scores
+    ``populate_by_name`` lets both ``{"pass": True}`` (the alias the LLM
+    judge emits — ``pass`` is a Python keyword so the field is ``pass_``)
+    and ``{"pass_": True}`` (the form produced by ``model_dump_json()``)
+    parse. Without it, round-trip serialization through the harness diff
+    pipeline silently fails on the load side.
+    """
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     score: float
     pass_: bool = Field(alias="pass")
