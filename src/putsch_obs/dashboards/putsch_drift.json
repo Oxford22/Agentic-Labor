@@ -1,0 +1,96 @@
+{
+  "slug": "putsch_drift",
+  "name": "Embedding + behaviour drift",
+  "description": "Per-agent embedding drift, dropped span counter, dataset-version churn.",
+  "tags": ["putsch", "drift", "ml-platform"],
+  "owner_team": "ml-platform",
+  "refresh_interval_seconds": 300,
+  "time_range": "last_30d",
+  "widgets": [
+    {
+      "id": "input_embedding_drift",
+      "title": "Input embedding drift (cosine vs 30d baseline)",
+      "type": "timeseries",
+      "query": {
+        "metric": "mean",
+        "field": "putsch.drift.input_cosine",
+        "group_by": "service.name",
+        "interval": "1d"
+      },
+      "thresholds": [
+        {
+          "label": "investigate",
+          "value": 0.15,
+          "color": "amber",
+          "comparator": "gt",
+          "notify_webhook": "drift-investigation"
+        },
+        {
+          "label": "alert",
+          "value": 0.30,
+          "color": "red",
+          "comparator": "gt",
+          "notify_webhook": "drift-alert"
+        }
+      ]
+    },
+    {
+      "id": "output_embedding_drift",
+      "title": "Output embedding drift (cosine vs 30d baseline)",
+      "type": "timeseries",
+      "query": {
+        "metric": "mean",
+        "field": "putsch.drift.output_cosine",
+        "group_by": "service.name",
+        "interval": "1d"
+      }
+    },
+    {
+      "id": "quality_score_trend",
+      "title": "Mean quality score (rolling 7d)",
+      "type": "timeseries",
+      "query": {
+        "metric": "mean",
+        "field": "putsch.quality_score",
+        "group_by": "service.name",
+        "interval": "1d",
+        "where": [{"field": "putsch.quality_score", "op": "exists", "value": true}]
+      }
+    },
+    {
+      "id": "dropped_spans",
+      "title": "Dropped spans (instrumentation backpressure)",
+      "type": "timeseries",
+      "query": {
+        "metric": "sum",
+        "field": "putsch.instrumentation.dropped",
+        "interval": "1h"
+      },
+      "thresholds": [
+        {"label": "warn", "value": 100, "color": "amber", "comparator": "gt"}
+      ]
+    },
+    {
+      "id": "dataset_versions",
+      "title": "Dataset versions in last 30d",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count_distinct",
+        "field": "dataset_version",
+        "group_by": "dataset_name"
+      }
+    },
+    {
+      "id": "redaction_failures",
+      "title": "Spans dropped on redaction failure",
+      "type": "single_value",
+      "query": {
+        "metric": "count",
+        "where": [{"field": "putsch.redaction", "op": "eq", "value": "failed_closed"}]
+      },
+      "thresholds": [
+        {"label": "investigate", "value": 1, "color": "red", "comparator": "gt"}
+      ]
+    }
+  ]
+}
