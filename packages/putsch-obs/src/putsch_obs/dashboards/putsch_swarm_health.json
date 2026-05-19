@@ -1,0 +1,90 @@
+{
+  "slug": "putsch_swarm_health",
+  "name": "Mahnverfahren Swarm Health",
+  "description": "Magentic-One swarm operational dashboard: stalls, replans, escalations.",
+  "tags": ["putsch", "swarm", "langgraph", "mahnung"],
+  "owner_team": "credit-platform",
+  "refresh_interval_seconds": 60,
+  "time_range": "last_7d",
+  "filters_default": [
+    {"field": "service.name", "op": "eq", "value": "mahnung-swarm"}
+  ],
+  "widgets": [
+    {
+      "id": "completion_rate",
+      "title": "Mahnverfahren completion %",
+      "type": "single_value",
+      "query": {
+        "metric": "ratio",
+        "numerator": {
+          "field": "trace_id",
+          "where": [
+            {"field": "name", "op": "eq", "value": "langgraph.run"},
+            {"field": "putsch.terminal_state", "op": "eq", "value": "completed"}
+          ]
+        },
+        "denominator": {
+          "field": "trace_id",
+          "where": [{"field": "name", "op": "eq", "value": "langgraph.run"}]
+        }
+      },
+      "format": "percent",
+      "thresholds": [{"label": "sla", "value": 0.95, "color": "red", "comparator": "lt"}]
+    },
+    {
+      "id": "stall_events",
+      "title": "Stall events / day",
+      "type": "timeseries",
+      "query": {
+        "metric": "count",
+        "where": [{"field": "event.name", "op": "eq", "value": "langgraph.interrupt"}],
+        "interval": "1d"
+      }
+    },
+    {
+      "id": "replan_frequency",
+      "title": "Replans / run (mean)",
+      "type": "single_value",
+      "query": {
+        "metric": "mean_per_trace",
+        "where": [{"field": "putsch.routing.decision", "op": "eq", "value": "replan"}]
+      },
+      "thresholds": [{"label": "ok", "value": 2.0, "color": "amber", "comparator": "gt"}]
+    },
+    {
+      "id": "escalation_accuracy",
+      "title": "Escalation accuracy (judged)",
+      "type": "single_value",
+      "query": {
+        "metric": "mean",
+        "field": "putsch.quality_score",
+        "where": [
+          {"field": "putsch.routing.decision", "op": "eq", "value": "escalate"},
+          {"field": "putsch.quality_score", "op": "exists", "value": true}
+        ]
+      },
+      "thresholds": [{"label": "target", "value": 0.85, "color": "red", "comparator": "lt"}]
+    },
+    {
+      "id": "node_latency_breakdown",
+      "title": "Node latency breakdown (p95, ms)",
+      "type": "bar_chart",
+      "query": {
+        "metric": "p95",
+        "field": "duration_ms",
+        "group_by": "langgraph.node.name",
+        "where": [{"field": "putsch.kind", "op": "eq", "value": "node"}]
+      }
+    },
+    {
+      "id": "interrupts_by_reason",
+      "title": "Interrupts by reason",
+      "type": "bar_chart",
+      "query": {
+        "metric": "count",
+        "group_by": "interrupt.reason",
+        "where": [{"field": "event.name", "op": "eq", "value": "langgraph.interrupt"}]
+      }
+    }
+  ]
+}

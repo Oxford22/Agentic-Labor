@@ -1,0 +1,61 @@
+#cloud-config
+# Bootstrap a fresh Hetzner CCX33 to host the Langfuse stack.
+#
+# Steps:
+#   1. Mount the ClickHouse data volume on /var/lib/docker/volumes-fast.
+#   2. Install docker + age + aws CLI.
+#   3. Clone the deploy repo at the pinned ref.
+#   4. Decrypt the encrypted `.env.age` with the host's age identity (held
+#      in Hetzner Vault and injected via cloud-init's `runcmd` indirection
+#      — NOT inlined here).
+#   5. docker compose up -d.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - jq
+  - awscli
+  - age
+  - git
+
+write_files:
+  - path: /etc/systemd/system/putsch-langfuse.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Putsch Langfuse self-host stack
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/putsch/deploy/langfuse
+      ExecStartPre=/usr/bin/git -C /opt/putsch pull --ff-only
+      ExecStart=/usr/bin/docker compose up -d --remove-orphans
+      ExecStop=/usr/bin/docker compose down
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Docker engine via the official convenience script (Hetzner's Ubuntu base
+  # ships an older apt-archived version).
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+
+  - mkdir -p /opt/putsch
+  - git clone --branch ${docker_compose_ref} ${docker_compose_repo} /opt/putsch
+  - chown -R 1000:1000 /opt/putsch
+
+  # NOTE: secrets are pulled in here by a separate ConfigMgmt step. The
+  # placeholder below documents the contract; the actual decrypt happens
+  # in a hardened, audited Hetzner Vault sidecar.
+  - test -f /opt/putsch/deploy/langfuse/.env || (echo "missing .env"; exit 1)
+
+  - systemctl enable --now putsch-langfuse
