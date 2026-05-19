@@ -1,0 +1,108 @@
+name: compile-nightly
+
+on:
+  schedule:
+    # Sunday 03:17 UTC — outside business hours in DACH, before Monday standup.
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      signatures:
+        description: "Space-separated signature names (default: all)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  recompile:
+    name: recompile every signature against the catalog, open PR if a cheaper model wins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: optimizer-bot
+    env:
+      PUTSCH_COMPILE_ENV: "staging"
+      PUTSCH_COMPILE_LITELLM_PROXY_BASE_URL: ${{ secrets.LITELLM_PROXY_URL }}
+      PUTSCH_COMPILE_LITELLM_PROXY_API_KEY: ${{ secrets.LITELLM_PROXY_KEY }}
+      PUTSCH_COMPILE_LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+      PUTSCH_COMPILE_LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      PUTSCH_COMPILE_LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      PUTSCH_COMPILE_DB_DSN: ${{ secrets.REGISTRY_DB_DSN }}
+      PUTSCH_COMPILE_MINIO_ENDPOINT_URL: ${{ secrets.MINIO_ENDPOINT }}
+      PUTSCH_COMPILE_MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+      PUTSCH_COMPILE_MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Determine signature list
+        id: list
+        run: |
+          if [ -n "${{ github.event.inputs.signatures }}" ]; then
+            echo "names=${{ github.event.inputs.signatures }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "names=$(putsch-compile list-signatures --log-pretty 2>/dev/null | awk '{print $1}' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull annotations from Langfuse before compiling
+        run: |
+          for name in ${{ steps.list.outputs.names }}; do
+            echo "::group::sync-feedback $name"
+            putsch-compile sync-feedback "$name" || true
+            echo "::endgroup::"
+          done
+
+      - name: Recompile (cheapest-model-first ladder)
+        id: compile
+        run: |
+          mkdir -p .nightly-reports
+          set +e
+          status=0
+          for name in ${{ steps.list.outputs.names }}; do
+            echo "::group::compile $name"
+            putsch-compile compile "$name" --env staging --actor "agentic-platform-bot@putsch.example" > ".nightly-reports/$name.txt"
+            ec=$?
+            echo "::endgroup::"
+            if [ $ec -ne 0 ] && [ $ec -ne 2 ]; then  # 2 = regression-halt, expected
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Detect cheaper-model wins
+        id: diff
+        run: |
+          python scripts/detect_model_downgrades.py .nightly-reports > .nightly-reports/summary.md
+          if grep -q "PROMOTABLE" .nightly-reports/summary.md; then
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open PR with downgrade recommendations
+        if: steps.diff.outputs.open_pr == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto/nightly-${{ github.run_id }}
+          base: main
+          title: "compile-nightly: cheaper-model promotion candidates"
+          body-path: .nightly-reports/summary.md
+          commit-message: "compile(nightly): promotable cheaper-model artifacts"
+          draft: true
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-reports-${{ github.run_id }}
+          path: .nightly-reports/
+          retention-days: 30
