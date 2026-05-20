@@ -212,6 +212,18 @@ def test_route_to_replan_when_speaker_unknown(orchestrator_factory):
     assert orch.route_after_progress(state) == "replan"
 
 
+def test_route_to_replan_when_instruction_missing(orchestrator_factory):
+    orch = orchestrator_factory({})
+    state = {
+        "progress_ledger": ProgressLedger(
+            **_progress(instruction_or_question=None)
+        ),
+        "stall_count": 0,
+        "replan_count": 0,
+    }
+    assert orch.route_after_progress(state) == "replan"
+
+
 def test_synthesize_final_uses_progress_answer_when_present(orchestrator_factory):
     orch = orchestrator_factory({})
     progress = ProgressLedger(
