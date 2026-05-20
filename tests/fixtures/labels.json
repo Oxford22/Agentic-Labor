@@ -1,0 +1,59 @@
+{
+  "_comment": "Ground-truth labels for the 5 synthetic fixtures. Used by scripts/eval.py and integration tests.",
+  "clean_invoice.pdf": {
+    "rechnungsnummer": "2026-04001",
+    "rechnungsdatum": "2026-04-18",
+    "leistungsdatum": "2026-04-15",
+    "lieferant_name": "Schmidt Industrieteile GmbH",
+    "lieferant_ustid": "DE129273398",
+    "lieferant_address": "Industriestraße 14, 58095 Hagen",
+    "kunde_ustid": "DE811184878",
+    "iban": "DE89370400440532013000",
+    "bic": "COBADEFFXXX",
+    "netto_betrag": "1000.00",
+    "mwst_satz": "19.00",
+    "mwst_betrag": "190.00",
+    "brutto_betrag": "1190.00",
+    "waehrung": "EUR",
+    "zahlungsziel": 30,
+    "skonto_prozent": "2.00",
+    "skonto_frist": 14,
+    "bestellnummer_ref": "PO-2026-7781",
+    "lieferantennummer_ref": "50012345"
+  },
+  "scanned_invoice.pdf": {
+    "rechnungsnummer": "2026-04001",
+    "rechnungsdatum": "2026-04-18",
+    "leistungsdatum": "2026-04-15",
+    "lieferant_ustid": "DE129273398",
+    "kunde_ustid": "DE811184878",
+    "iban": "DE89370400440532013000",
+    "netto_betrag": "1000.00",
+    "mwst_betrag": "190.00",
+    "brutto_betrag": "1190.00"
+  },
+  "multipage_tables.pdf": {
+    "rechnungsnummer": "2026-04001",
+    "rechnungsdatum": "2026-04-18",
+    "lieferant_ustid": "DE129273398",
+    "kunde_ustid": "DE811184878",
+    "iban": "DE89370400440532013000",
+    "netto_betrag": "14400.00",
+    "mwst_betrag": "2736.00",
+    "brutto_betrag": "17136.00"
+  },
+  "handwritten_annotation.pdf": {
+    "rechnungsnummer": "2026-04001",
+    "lieferant_ustid": "DE129273398",
+    "iban": "DE89370400440532013000",
+    "netto_betrag": "1000.00",
+    "brutto_betrag": "1190.00"
+  },
+  "watermark_stamp.pdf": {
+    "rechnungsnummer": "2026-04001",
+    "lieferant_ustid": "DE129273398",
+    "iban": "DE89370400440532013000",
+    "netto_betrag": "1000.00",
+    "brutto_betrag": "1190.00"
+  }
+}

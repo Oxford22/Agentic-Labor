@@ -1,0 +1,67 @@
+# Local dev stack.
+#
+# Two services:
+#   - putsch-docs:  the extractor + MCP server, CPU-only for laptop dev.
+#   - vllm:         Qwen2.5-VL-72B for the fallback path.
+#                   Profile-gated — only runs when you `--profile vllm up`,
+#                   because 72B doesn't fit on laptops. CI uses a vLLM mock.
+#
+# Frankfurt prod runs the same images with a different compose file
+# (vllm-prod on dedicated H100 hosts; this compose stays minimal).
+
+services:
+  putsch-docs:
+    build: .
+    image: putsch-docs:dev
+    environment:
+      PUTSCH_DOCS_DOCLING__DEVICE: cpu
+      PUTSCH_DOCS_FALLBACK__ENABLED: "true"
+      PUTSCH_DOCS_FALLBACK__ENDPOINT: http://vllm:8000/v1
+      PUTSCH_DOCS_FALLBACK__MODEL_ID: Qwen/Qwen2.5-VL-72B-Instruct
+      PUTSCH_DOCS_LLM__API_KEY: ${MISTRAL_API_KEY:-}
+      PUTSCH_DOCS_OBS__LANGFUSE_ENABLED: "false"
+      PUTSCH_DOCS_OBS__ENVIRONMENT: dev
+      PUTSCH_DOCS_OBS__LOG_LEVEL: INFO
+    volumes:
+      - ./tests/fixtures:/data/fixtures:ro
+      - granite-cache:/opt/docling-artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import putsch_docs; print(putsch_docs.__version__)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # GPU profile. Skip on dev laptops; bring up only when testing fallback path.
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles: ["vllm"]
+    command:
+      - "--model"
+      - "Qwen/Qwen2.5-VL-72B-Instruct"
+      - "--port"
+      - "8000"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.92"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+
+volumes:
+  granite-cache:
+  hf-cache:

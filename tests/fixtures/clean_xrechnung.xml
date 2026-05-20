@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal XRechnung 2.3 (UBL Invoice 2.1) fixture.
+  Issued by a synthetic vendor "Schmidt Industrieteile GmbH" (Hagen, NRW)
+  to Putsch Group. Conforms to EN 16931 Core Invoice Usage Specification.
+-->
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xoev-de:kosit:standard:xrechnung_2.3</cbc:CustomizationID>
+    <cbc:ID>2026-04001</cbc:ID>
+    <cbc:IssueDate>2026-04-18</cbc:IssueDate>
+    <cbc:DueDate>2026-05-18</cbc:DueDate>
+    <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+    <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+    <cbc:BuyerReference>PO-2026-7781</cbc:BuyerReference>
+
+    <cac:OrderReference>
+        <cbc:ID>PO-2026-7781</cbc:ID>
+    </cac:OrderReference>
+
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cbc:EndpointID schemeID="EM">rechnung@schmidt-industrie.de</cbc:EndpointID>
+            <cac:PartyName><cbc:Name>Schmidt Industrieteile GmbH</cbc:Name></cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:StreetName>Industriestraße 14</cbc:StreetName>
+                <cbc:CityName>Hagen</cbc:CityName>
+                <cbc:PostalZone>58095</cbc:PostalZone>
+                <cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+                <cbc:CompanyID>DE129273398</cbc:CompanyID>
+                <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+            </cac:PartyTaxScheme>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName>Schmidt Industrieteile GmbH</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+
+    <cac:AccountingCustomerParty>
+        <cac:Party>
+            <cac:PartyName><cbc:Name>Putsch GmbH &amp; Co. KG</cbc:Name></cac:PartyName>
+            <cac:PostalAddress>
+                <cbc:StreetName>Vor dem Walde 7</cbc:StreetName>
+                <cbc:CityName>Hagen</cbc:CityName>
+                <cbc:PostalZone>58089</cbc:PostalZone>
+                <cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country>
+            </cac:PostalAddress>
+            <cac:PartyTaxScheme>
+                <cbc:CompanyID>DE811184878</cbc:CompanyID>
+                <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+            </cac:PartyTaxScheme>
+        </cac:Party>
+    </cac:AccountingCustomerParty>
+
+    <cac:PaymentMeans>
+        <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
+        <cac:PayeeFinancialAccount>
+            <cbc:ID>DE89370400440532013000</cbc:ID>
+            <cac:FinancialInstitutionBranch>
+                <cbc:ID>COBADEFFXXX</cbc:ID>
+            </cac:FinancialInstitutionBranch>
+        </cac:PayeeFinancialAccount>
+    </cac:PaymentMeans>
+
+    <cac:PaymentTerms>
+        <cbc:Note>2% Skonto bei Zahlung innerhalb 14 Tagen; netto 30 Tage</cbc:Note>
+    </cac:PaymentTerms>
+
+    <cac:TaxTotal>
+        <cbc:TaxAmount currencyID="EUR">190.00</cbc:TaxAmount>
+        <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="EUR">1000.00</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="EUR">190.00</cbc:TaxAmount>
+            <cac:TaxCategory>
+                <cbc:ID>S</cbc:ID>
+                <cbc:Percent>19.00</cbc:Percent>
+                <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+            </cac:TaxCategory>
+        </cac:TaxSubtotal>
+    </cac:TaxTotal>
+
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="EUR">1000.00</cbc:LineExtensionAmount>
+        <cbc:TaxExclusiveAmount currencyID="EUR">1000.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount currencyID="EUR">1190.00</cbc:TaxInclusiveAmount>
+        <cbc:PayableAmount currencyID="EUR">1190.00</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+
+    <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="H87">10.0000</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="EUR">600.00</cbc:LineExtensionAmount>
+        <cac:Item>
+            <cbc:Name>Zahnradgetriebe Typ A</cbc:Name>
+            <cac:SellersItemIdentification><cbc:ID>M-4711</cbc:ID></cac:SellersItemIdentification>
+            <cac:ClassifiedTaxCategory>
+                <cbc:ID>S</cbc:ID><cbc:Percent>19.00</cbc:Percent>
+                <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+            </cac:ClassifiedTaxCategory>
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="EUR">60.00</cbc:PriceAmount>
+        </cac:Price>
+    </cac:InvoiceLine>
+
+    <cac:InvoiceLine>
+        <cbc:ID>2</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="H87">4.0000</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="EUR">400.00</cbc:LineExtensionAmount>
+        <cac:Item>
+            <cbc:Name>Wellendichtring 30x42</cbc:Name>
+            <cac:SellersItemIdentification><cbc:ID>M-4712</cbc:ID></cac:SellersItemIdentification>
+            <cac:ClassifiedTaxCategory>
+                <cbc:ID>S</cbc:ID><cbc:Percent>19.00</cbc:Percent>
+                <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+            </cac:ClassifiedTaxCategory>
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="EUR">100.00</cbc:PriceAmount>
+        </cac:Price>
+    </cac:InvoiceLine>
+</Invoice>
