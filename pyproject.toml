@@ -5,6 +5,9 @@ description = "EU-sovereign multi-agent back-office automation for Putsch Mittel
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
+dependencies = [
+    "putsch-contracts",
+    ]
 
 [tool.uv.workspace]
 members = ["packages/*"]
