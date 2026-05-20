@@ -2,6 +2,8 @@
 
 How we decide what to work on next in Agentic-Labor. Versioned so the rubric is auditable and so the backlog reads as a single, scannable document instead of a Notion graveyard.
 
+> **Scope note.** This document is checked in alongside in-flight work. Several rows in the Backlog table below reference paths and packages (`packages/putsch-obs/`, `packages/putsch-memory/`, `tests/integration/**`, etc.) that are introduced by open PRs #6, #7, and #8 and are not yet present on `main`. The rubric itself is repo-agnostic and usable immediately; the seeded rows become directly actionable once those PRs land. See the `Source` column for the PR each row tracks. New rows that reference yet-unmerged paths should always link the introducing PR in `Source` so a reader on `main` can tell what is aspirational vs. live.
+
 ## TL;DR
 
 Every candidate work item gets a score: `(Impact * Confidence * Leverage) / Effort`. Highest score wins. Ties broken by (1) live-context proximity, (2) reversibility, (3) learning value. Items that can't be scored are sent back for sharpening.
