@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -79,11 +80,11 @@ jobs:
       - name: pytest (unit only -- integration and chaos are gated by directory)
         run: |
           cd packages/${{ matrix.package }}
-          # Skip integration/ and chaos/ subdirectories by path; the marker
-          # filter is a belt-and-braces guard for tests that ALSO carry the
-          # marker. The --cov-fail-under=0 override neutralises the strict
-          # 85% threshold during unit-only runs (full coverage is enforced
-          # by the staging-eval workflow).
+          # Skip integration/, chaos/, perf/ subdirectories by path; the
+          # marker filter is a belt-and-braces guard for tests that ALSO
+          # carry the marker. The --cov-fail-under=0 override neutralises
+          # the strict 85% threshold during unit-only runs (full coverage
+          # is enforced by the staging-eval workflow).
           pytest tests/ \
             --ignore=tests/integration --ignore=tests/chaos --ignore=tests/perf \
             -m "not integration and not chaos and not perf" \
