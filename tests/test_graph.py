@@ -202,6 +202,43 @@ def test_graph_aborts_after_max_replans():
     assert "unable to resolve" in result["final_answer"]
 
 
+def test_graph_does_not_dispatch_without_instruction():
+    """A speaker without an instruction is not dispatchable.
+
+    The dispatch node would no-op in this state. Routing must avoid sending the
+    graph there, otherwise the progress loop can repeat with unchanged state
+    until LangGraph's recursion limit aborts the run.
+    """
+
+    scripts = {
+        "orch": [
+            json.dumps({
+                "facts": [],
+                "guesses": [],
+                "plan": ["[procurement] verify PO match"],
+            }),
+            json.dumps({
+                "is_request_satisfied": False,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": "procurement",
+                "instruction_or_question": None,
+                "final_answer": None,
+                "reasoning": "forgot to include the worker instruction",
+            }),
+            "Best-effort answer: unable to dispatch procurement.",
+        ],
+    }
+    router = _build_router(scripts)
+    orch = Orchestrator(router=router, workers=_registry(), max_replans=0)
+    graph = build_graph(orch)
+
+    result = graph.invoke({"task": "check invoice 1187", "transcript": []})
+
+    assert "unable to dispatch" in result["final_answer"]
+    assert result["transcript"] == []
+
+
 def test_putsch_registry_has_seven_specialists():
     from swarm import build_putsch_registry
 
