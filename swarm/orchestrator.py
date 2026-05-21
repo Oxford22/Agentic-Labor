@@ -153,10 +153,12 @@ class Orchestrator:
             return "finalize"
 
         stalled = state.get("stall_count", 0) >= self.max_stalls_before_replan
-        has_valid_speaker = bool(
-            progress.next_speaker and self.workers.has(progress.next_speaker)
+        has_dispatchable_worker = bool(
+            progress.next_speaker
+            and progress.instruction_or_question
+            and self.workers.has(progress.next_speaker)
         )
-        if not stalled and has_valid_speaker:
+        if not stalled and has_dispatchable_worker:
             return "dispatch"
         # Either stalled or no usable next speaker - try a replan, unless the
         # budget is exhausted, in which case synthesize what we have.
