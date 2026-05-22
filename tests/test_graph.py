@@ -166,6 +166,53 @@ def test_graph_replan_then_complete():
     assert "finance" in speakers
 
 
+def test_graph_replans_when_dispatch_instruction_missing():
+    """A dispatch target without a message cannot call a worker, so replan."""
+
+    scripts = {
+        "orch": [
+            json.dumps({
+                "facts": [],
+                "guesses": [],
+                "plan": ["[procurement] verify PO match"],
+            }),
+            json.dumps({
+                "is_request_satisfied": False,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": "procurement",
+                "instruction_or_question": None,
+                "final_answer": None,
+                "reasoning": "selected worker but omitted the task",
+            }),
+            json.dumps({
+                "facts": ["dispatch was incomplete"],
+                "guesses": [],
+                "plan": ["[finance] synthesize from available context"],
+            }),
+            json.dumps({
+                "is_request_satisfied": True,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": None,
+                "instruction_or_question": None,
+                "final_answer": "Best-effort answer after replanning.",
+                "reasoning": "recovered from incomplete dispatch",
+            }),
+        ],
+        "proc": ["This worker should not be called."],
+    }
+    router = _build_router(scripts)
+    orch = Orchestrator(router=router, workers=_registry())
+    graph = build_graph(orch)
+
+    result = graph.invoke({"task": "check invoice 1187", "transcript": []})
+
+    assert result["replan_count"] == 1
+    assert result["final_answer"] == "Best-effort answer after replanning."
+    assert "procurement" not in {speaker for speaker, _ in result["transcript"]}
+
+
 def test_graph_aborts_after_max_replans():
     """If replans exhaust without success, the graph still terminates via finalize.
 
