@@ -160,6 +160,18 @@ def test_route_to_dispatch_when_progressing(orchestrator_factory):
     assert orch.route_after_progress(state) == "dispatch"
 
 
+def test_route_to_replan_when_instruction_missing(orchestrator_factory):
+    orch = orchestrator_factory({})
+    state = {
+        "progress_ledger": ProgressLedger(
+            **_progress(instruction_or_question=None)
+        ),
+        "stall_count": 0,
+        "replan_count": 0,
+    }
+    assert orch.route_after_progress(state) == "replan"
+
+
 def test_route_to_replan_when_stalled(orchestrator_factory):
     orch = orchestrator_factory({})
     state = {

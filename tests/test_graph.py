@@ -202,6 +202,43 @@ def test_graph_aborts_after_max_replans():
     assert "unable to resolve" in result["final_answer"]
 
 
+def test_graph_replans_when_progress_omits_worker_instruction():
+    """A worker name without a message cannot be dispatched and must not loop."""
+
+    missing_instruction = json.dumps({
+        "is_request_satisfied": False,
+        "is_in_loop": False,
+        "is_progress_being_made": True,
+        "next_speaker": "procurement",
+        "instruction_or_question": None,
+        "final_answer": None,
+        "reasoning": "picked a worker but omitted the task",
+    })
+    initial = json.dumps({
+        "facts": [], "guesses": [], "plan": ["[procurement] first"],
+    })
+    replan = json.dumps({"facts": [], "guesses": [], "plan": ["[finance] recover"]})
+    final_msg = "Best-effort answer after malformed progress."
+
+    scripts = {
+        "orch": [initial, missing_instruction, replan, missing_instruction, final_msg],
+    }
+    router = _build_router(scripts)
+    orch = Orchestrator(
+        router=router,
+        workers=_registry(),
+        max_stalls_before_replan=1,
+        max_replans=1,
+    )
+    graph = build_graph(orch)
+
+    result = graph.invoke({"task": "check invoice 1187", "transcript": []})
+
+    assert result["replan_count"] == 1
+    assert result["transcript"] == []
+    assert result["final_answer"] == final_msg
+
+
 def test_putsch_registry_has_seven_specialists():
     from swarm import build_putsch_registry
 
