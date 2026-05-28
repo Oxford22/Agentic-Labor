@@ -166,6 +166,52 @@ def test_graph_replan_then_complete():
     assert "finance" in speakers
 
 
+def test_graph_replans_when_dispatch_instruction_missing():
+    """A named speaker without an instruction cannot be dispatched, so replan."""
+
+    scripts = {
+        "orch": [
+            json.dumps({
+                "facts": [],
+                "guesses": [],
+                "plan": ["[procurement] verify PO match"],
+            }),
+            json.dumps({
+                "is_request_satisfied": False,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": "procurement",
+                "instruction_or_question": None,
+                "final_answer": None,
+                "reasoning": "speaker chosen but no worker prompt emitted",
+            }),
+            json.dumps({
+                "facts": ["procurement prompt was incomplete"],
+                "guesses": [],
+                "plan": ["[finance] complete the check from AP"],
+            }),
+            json.dumps({
+                "is_request_satisfied": True,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": None,
+                "instruction_or_question": None,
+                "final_answer": "Completed after replanning.",
+                "reasoning": "replanned around incomplete dispatch",
+            }),
+        ],
+    }
+    router = _build_router(scripts)
+    orch = Orchestrator(router=router, workers=_registry())
+    graph = build_graph(orch)
+
+    result = graph.invoke({"task": "check invoice 1187", "transcript": []})
+
+    assert result["final_answer"] == "Completed after replanning."
+    assert result["replan_count"] == 1
+    assert result["transcript"] == []
+
+
 def test_graph_aborts_after_max_replans():
     """If replans exhaust without success, the graph still terminates via finalize.
 
