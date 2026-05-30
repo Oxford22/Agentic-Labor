@@ -117,14 +117,15 @@ class Orchestrator:
 
     def dispatch_worker(self, state: SwarmState) -> dict:
         progress = state["progress_ledger"]
-        if not progress.next_speaker or not progress.instruction_or_question:
+        instruction = progress.instruction_or_question
+        if not progress.next_speaker or not instruction or not instruction.strip():
             return {}
         worker = self.workers.get(progress.next_speaker)
-        reply = worker.invoke(self.router, progress.instruction_or_question)
+        reply = worker.invoke(self.router, instruction)
         transcript = list(state.get("transcript", []))
         transcript.append((
             "orchestrator",
-            f"-> {worker.name}: {progress.instruction_or_question}",
+            f"-> {worker.name}: {instruction}",
         ))
         transcript.append((worker.name, reply))
         return {"transcript": transcript}
@@ -156,7 +157,9 @@ class Orchestrator:
         has_valid_speaker = bool(
             progress.next_speaker and self.workers.has(progress.next_speaker)
         )
-        if not stalled and has_valid_speaker:
+        instruction = progress.instruction_or_question
+        has_instruction = bool(instruction and instruction.strip())
+        if not stalled and has_valid_speaker and has_instruction:
             return "dispatch"
         # Either stalled or no usable next speaker - try a replan, unless the
         # budget is exhausted, in which case synthesize what we have.

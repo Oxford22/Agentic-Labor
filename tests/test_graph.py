@@ -202,6 +202,53 @@ def test_graph_aborts_after_max_replans():
     assert "unable to resolve" in result["final_answer"]
 
 
+def test_graph_replans_when_progress_omits_instruction():
+    """A named worker without an instruction is not a dispatchable step."""
+
+    scripts = {
+        "orch": [
+            json.dumps({
+                "facts": [],
+                "guesses": [],
+                "plan": ["[procurement] verify PO match"],
+            }),
+            json.dumps({
+                "is_request_satisfied": False,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": "procurement",
+                "instruction_or_question": None,
+                "final_answer": None,
+                "reasoning": "need procurement but omitted the instruction",
+            }),
+            json.dumps({
+                "facts": ["progress ledger omitted a worker instruction"],
+                "guesses": [],
+                "plan": ["[finance] check AP directly"],
+            }),
+            json.dumps({
+                "is_request_satisfied": True,
+                "is_in_loop": False,
+                "is_progress_being_made": True,
+                "next_speaker": None,
+                "instruction_or_question": None,
+                "final_answer": "Replanned after incomplete dispatch target.",
+                "reasoning": "complete",
+            }),
+        ],
+        "proc": ["This worker should not be called."],
+    }
+    router = _build_router(scripts)
+    orch = Orchestrator(router=router, workers=_registry())
+    graph = build_graph(orch)
+
+    result = graph.invoke({"task": "check invoice 1187", "transcript": []})
+
+    assert result["replan_count"] == 1
+    assert result["final_answer"] == "Replanned after incomplete dispatch target."
+    assert result.get("transcript", []) == []
+
+
 def test_putsch_registry_has_seven_specialists():
     from swarm import build_putsch_registry
 
