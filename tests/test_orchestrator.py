@@ -150,6 +150,22 @@ def test_dispatch_is_noop_when_no_next_speaker(orchestrator_factory):
     assert out == {}
 
 
+def test_dispatch_is_noop_when_instruction_missing(orchestrator_factory):
+    orch = orchestrator_factory({})
+    progress = ProgressLedger(
+        is_request_satisfied=False,
+        is_in_loop=False,
+        is_progress_being_made=True,
+        next_speaker="procurement",
+        instruction_or_question=" ",
+        reasoning="",
+    )
+    out = orch.dispatch_worker({
+        "task": "x", "progress_ledger": progress, "transcript": [],
+    })
+    assert out == {}
+
+
 def test_route_to_dispatch_when_progressing(orchestrator_factory):
     orch = orchestrator_factory({})
     state = {
@@ -205,6 +221,18 @@ def test_route_to_replan_when_speaker_unknown(orchestrator_factory):
     state = {
         "progress_ledger": ProgressLedger(
             **_progress(next_speaker="hallucinated_worker")
+        ),
+        "stall_count": 0,
+        "replan_count": 0,
+    }
+    assert orch.route_after_progress(state) == "replan"
+
+
+def test_route_to_replan_when_instruction_missing(orchestrator_factory):
+    orch = orchestrator_factory({})
+    state = {
+        "progress_ledger": ProgressLedger(
+            **_progress(instruction_or_question=None)
         ),
         "stall_count": 0,
         "replan_count": 0,
